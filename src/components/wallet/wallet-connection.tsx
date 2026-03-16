@@ -29,6 +29,7 @@ import {
   Shield,
   Lock,
   Key,
+  Info,
 } from 'lucide-react';
 import { chainIdToName, nativeCurrencySymbols, nameToChainId } from '@/components/providers';
 import { useTradingStore } from '@/store/trading-store';
@@ -44,6 +45,7 @@ export function WalletConnection() {
   const { botConfig, setBotConfig } = useTradingStore();
   const [copied, setCopied] = useState(false);
   const [showPrivateKeyWarning, setShowPrivateKeyWarning] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Update bot config when chain changes
   useEffect(() => {
@@ -119,15 +121,31 @@ export function WalletConnection() {
             Connect Wallet
           </Button>
           
+          <Alert className="bg-blue-500/10 border-blue-500/20">
+            <Info className="h-4 w-4 text-blue-500" />
+            <AlertTitle className="text-blue-500">Recommended Wallets</AlertTitle>
+            <AlertDescription className="text-sm">
+              <p className="mt-1"><strong>Browser Extensions (Best):</strong></p>
+              <ul className="list-disc list-inside ml-2 text-xs mt-1">
+                <li>MetaMask - Most compatible</li>
+                <li>Rabby - Great security features</li>
+                <li>Brave Wallet - Built into Brave browser</li>
+              </ul>
+              <p className="mt-2"><strong>Note:</strong> WalletConnect may show "Connection reset" errors in some environments. If you experience issues, please use a browser extension wallet instead.</p>
+            </AlertDescription>
+          </Alert>
+          
           <div className="text-sm text-muted-foreground space-y-2">
-            <p className="font-medium">Supported Wallets:</p>
+            <p className="font-medium">All Supported Wallets:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>MetaMask</li>
-              <li>WalletConnect</li>
+              <li>MetaMask (Recommended)</li>
+              <li>Rabby (Recommended)</li>
+              <li>Brave Wallet</li>
+              <li>Trust Wallet Extension</li>
+              <li>OKX Wallet</li>
               <li>Rainbow</li>
-              <li>Coinbase Wallet</li>
-              <li>Trust Wallet</li>
-              <li>And many more...</li>
+              <li>WalletConnect (Mobile)</li>
+              <li>Ledger (Hardware)</li>
             </ul>
           </div>
         </CardContent>

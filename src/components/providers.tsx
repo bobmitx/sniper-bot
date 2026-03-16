@@ -125,16 +125,21 @@ const chains = [
   pulsechain,
 ] as const;
 
-// Configure wallets - using only injected/extension wallets that work in iframes
-// Removed Coinbase Wallet as it requires popup windows which don't work in sandboxed environments
+// Configure wallets - prioritize browser extension wallets that work reliably
+// WalletConnect may have issues in sandboxed environments due to popup/relay requirements
 const connectors = connectorsForWallets(
   [
     {
-      groupName: 'Browser Extension',
+      groupName: 'Recommended (Browser Extension)',
       wallets: [
         metaMaskWallet,
         rabbyWallet,
         braveWallet,
+      ],
+    },
+    {
+      groupName: 'Other Extensions',
+      wallets: [
         trustWallet,
         okxWallet,
         imTokenWallet,
