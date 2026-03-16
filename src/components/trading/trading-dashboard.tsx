@@ -92,6 +92,7 @@ import { DocumentationPanel } from '@/components/trading/documentation-panel';
 
 export function TradingDashboard() {
   const socketRef = useRef<SocketType | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const {
     botConfig,
     isLoadingConfig,
@@ -350,14 +351,15 @@ export function TradingDashboard() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                fetchBotConfig();
-                fetchTrades();
-                fetchPositions();
+              onClick={async () => {
+                setIsRefreshing(true);
+                await Promise.all([fetchBotConfig(), fetchTrades(), fetchPositions()]);
+                setTimeout(() => setIsRefreshing(false), 500);
               }}
-              className="h-9 sm:h-9 px-2 sm:px-3 min-h-[44px] sm:min-h-0"
+              disabled={isRefreshing}
+              className="h-9 sm:h-9 px-2 sm:px-3 min-h-[44px] sm:min-h-0 transition-all duration-200 hover:bg-primary/10"
             >
-              <RefreshCw className="h-4 w-4 sm:mr-2" />
+              <RefreshCw className={`h-4 w-4 sm:mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
             {botConfig?.isActive ? (
@@ -367,7 +369,7 @@ export function TradingDashboard() {
                     variant="destructive" 
                     size="sm" 
                     disabled={isBotStarting}
-                    className="h-9 sm:h-9 px-2 sm:px-3 min-h-[44px] sm:min-h-0"
+                    className="h-9 sm:h-9 px-2 sm:px-3 min-h-[44px] sm:min-h-0 transition-all duration-200 hover:shadow-lg hover:shadow-red-500/20"
                   >
                     <Square className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">Stop Bot</span>
@@ -394,9 +396,13 @@ export function TradingDashboard() {
                 size="sm"
                 onClick={() => toggleBot('start')}
                 disabled={isBotStarting || !botConfig?.targetToken}
-                className="bg-green-600 hover:bg-green-700 h-9 sm:h-9 px-2 sm:px-3 min-h-[44px] sm:min-h-0"
+                className="bg-green-600 hover:bg-green-700 h-9 sm:h-9 px-2 sm:px-3 min-h-[44px] sm:min-h-0 transition-all duration-200 hover:shadow-lg hover:shadow-green-500/20"
               >
-                <Play className="h-4 w-4 sm:mr-2" />
+                {isBotStarting ? (
+                  <RefreshCw className="h-4 w-4 sm:mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 sm:mr-2" />
+                )}
                 <span className="hidden sm:inline">Start Bot</span>
                 <span className="sm:hidden">Start</span>
               </Button>
@@ -409,7 +415,7 @@ export function TradingDashboard() {
       <main className="container px-3 sm:px-4 py-4 sm:py-6">
         {/* Stats Overview */}
         <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 mb-4 sm:mb-6">
-          <Card>
+          <Card className="border-l-4 border-l-blue-500/50 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Total Value</CardTitle>
               <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -421,7 +427,7 @@ export function TradingDashboard() {
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={`border-l-4 ${totalPnL >= 0 ? 'border-l-green-500/50' : 'border-l-red-500/50'} hover:shadow-md transition-shadow`}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Total P&L</CardTitle>
               {totalPnL >= 0 ? (
@@ -439,7 +445,7 @@ export function TradingDashboard() {
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-l-4 border-l-purple-500/50 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Win Rate</CardTitle>
               <Target className="h-4 w-4 text-muted-foreground" />
@@ -449,7 +455,7 @@ export function TradingDashboard() {
               <Progress value={winRate} className="mt-2 h-2" />
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-l-4 border-l-amber-500/50 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Trades</CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
