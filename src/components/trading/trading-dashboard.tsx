@@ -80,7 +80,14 @@ import {
   LineChart,
   History,
   Bell,
+  Crosshair,
+  HelpCircle,
+  BookOpen,
+  MessageCircle,
+  ExternalLink,
 } from 'lucide-react';
+import { SniperPanel } from '@/components/trading/sniper-panel';
+import { DocumentationPanel } from '@/components/trading/documentation-panel';
 
 export function TradingDashboard() {
   const socketRef = useRef<SocketType | null>(null);
@@ -293,33 +300,43 @@ export function TradingDashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-3">
+        <div className="container flex h-14 sm:h-16 items-center justify-between px-3 sm:px-4 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-shrink-0">
             <div className="flex items-center gap-2">
-              <Bot className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold">Sniper Bot</span>
+              <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
+              <span className="text-lg sm:text-xl font-bold hidden sm:inline">Sniper Bot</span>
             </div>
-            <Badge variant={wsConnected ? 'default' : 'secondary'} className="ml-2">
+            {/* Connection status badge - show on all screens */}
+            <Badge 
+              variant={wsConnected ? 'default' : 'secondary'} 
+              className="hidden xs:flex ml-1 sm:ml-2 text-xs"
+            >
               {wsConnected ? (
                 <>
                   <CheckCircle className="mr-1 h-3 w-3" />
-                  Connected
+                  <span className="hidden sm:inline">Connected</span>
+                  <span className="sm:hidden">Live</span>
                 </>
               ) : (
                 <>
                   <XCircle className="mr-1 h-3 w-3" />
-                  Disconnected
+                  <span className="hidden sm:inline">Disconnected</span>
+                  <span className="sm:hidden">Offline</span>
                 </>
               )}
             </Badge>
+            {/* Active badge - hide on mobile */}
             {botConfig?.isActive && (
-              <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+              <Badge 
+                variant="outline" 
+                className="bg-green-500/10 text-green-500 border-green-500/20 hidden sm:flex"
+              >
                 <Activity className="mr-1 h-3 w-3 animate-pulse" />
                 Active
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Button
               variant="outline"
               size="sm"
@@ -328,16 +345,23 @@ export function TradingDashboard() {
                 fetchTrades();
                 fetchPositions();
               }}
+              className="h-9 sm:h-9 px-2 sm:px-3 min-h-[44px] sm:min-h-0"
             >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
+              <RefreshCw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
             {botConfig?.isActive ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" disabled={isBotStarting}>
-                    <Square className="mr-2 h-4 w-4" />
-                    Stop Bot
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    disabled={isBotStarting}
+                    className="h-9 sm:h-9 px-2 sm:px-3 min-h-[44px] sm:min-h-0"
+                  >
+                    <Square className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Stop Bot</span>
+                    <span className="sm:hidden">Stop</span>
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -360,10 +384,11 @@ export function TradingDashboard() {
                 size="sm"
                 onClick={() => toggleBot('start')}
                 disabled={isBotStarting || !botConfig?.targetToken}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 h-9 sm:h-9 px-2 sm:px-3 min-h-[44px] sm:min-h-0"
               >
-                <Play className="mr-2 h-4 w-4" />
-                Start Bot
+                <Play className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Start Bot</span>
+                <span className="sm:hidden">Start</span>
               </Button>
             )}
           </div>
@@ -371,24 +396,24 @@ export function TradingDashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="container px-4 py-6">
+      <main className="container px-3 sm:px-4 py-4 sm:py-6">
         {/* Stats Overview */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 mb-4 sm:mb-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Total Value</CardTitle>
               <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalValue.toFixed(2)}</div>
+              <div className="text-lg sm:text-2xl font-bold">${totalValue.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">
-                Across {positions.length} positions
+                {positions.length} position{positions.length !== 1 ? 's' : ''}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total P&L</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Total P&L</CardTitle>
               {totalPnL >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-green-500" />
               ) : (
@@ -396,33 +421,33 @@ export function TradingDashboard() {
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              <div className={`text-lg sm:text-2xl font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {totalPnL >= 0 ? '+' : ''}{totalPnL.toFixed(4)} ETH
               </div>
               <p className="text-xs text-muted-foreground">
-                Unrealized profit/loss
+                Unrealized
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Win Rate</CardTitle>
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
+              <div className="text-lg sm:text-2xl font-bold">{winRate.toFixed(1)}%</div>
               <Progress value={winRate} className="mt-2 h-2" />
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Trades</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Trades</CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{trades.length}</div>
+              <div className="text-lg sm:text-2xl font-bold">{trades.length}</div>
               <p className="text-xs text-muted-foreground">
-                {trades.filter((t) => t.status === 'completed').length} completed
+                {trades.filter((t) => t.status === 'completed').length} done
               </p>
             </CardContent>
           </Card>
@@ -430,32 +455,42 @@ export function TradingDashboard() {
 
         {/* Main Tabs */}
         <Tabs defaultValue="dashboard" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="dashboard">
-              <LineChart className="mr-2 h-4 w-4" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="wallet">
-              <Wallet className="mr-2 h-4 w-4" />
-              Wallet
-            </TabsTrigger>
-            <TabsTrigger value="config">
-              <Settings className="mr-2 h-4 w-4" />
-              Configuration
-            </TabsTrigger>
-            <TabsTrigger value="positions">
-              <Target className="mr-2 h-4 w-4" />
-              Positions
-            </TabsTrigger>
-            <TabsTrigger value="history">
-              <History className="mr-2 h-4 w-4" />
-              History
-            </TabsTrigger>
-            <TabsTrigger value="logs">
-              <Bell className="mr-2 h-4 w-4" />
-              Activity
-            </TabsTrigger>
-          </TabsList>
+          <ScrollArea className="w-full whitespace-nowrap">
+            <TabsList className="grid w-full grid-cols-9 min-w-[800px] sm:min-w-0 sm:w-auto">
+              <TabsTrigger value="dashboard" className="min-h-[44px] px-2 sm:px-4">
+                <LineChart className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Dashboard</span>
+              </TabsTrigger>
+              <TabsTrigger value="wallet" className="min-h-[44px] px-2 sm:px-4">
+                <Wallet className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Wallet</span>
+              </TabsTrigger>
+              <TabsTrigger value="config" className="min-h-[44px] px-2 sm:px-4">
+                <Settings className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Config</span>
+              </TabsTrigger>
+              <TabsTrigger value="positions" className="min-h-[44px] px-2 sm:px-4">
+                <Target className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Positions</span>
+              </TabsTrigger>
+              <TabsTrigger value="history" className="min-h-[44px] px-2 sm:px-4">
+                <History className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">History</span>
+              </TabsTrigger>
+              <TabsTrigger value="logs" className="min-h-[44px] px-2 sm:px-4">
+                <Bell className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Activity</span>
+              </TabsTrigger>
+              <TabsTrigger value="sniper" className="min-h-[44px] px-2 sm:px-4">
+                <Crosshair className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Sniper</span>
+              </TabsTrigger>
+              <TabsTrigger value="help" className="min-h-[44px] px-2 sm:px-4">
+                <HelpCircle className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Help</span>
+              </TabsTrigger>
+            </TabsList>
+          </ScrollArea>
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-4">
@@ -565,12 +600,12 @@ export function TradingDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[300px]">
+                <ScrollArea className="h-[250px] sm:h-[300px]">
                   <div className="space-y-2">
                     {activityLogs.slice(0, 20).map((log) => (
                       <div
                         key={log.id}
-                        className={`flex items-start gap-3 rounded-lg p-2 ${
+                        className={`flex items-start gap-2 sm:gap-3 rounded-lg p-2 ${
                           log.level === 'error'
                             ? 'bg-red-500/10'
                             : log.level === 'warning'
@@ -579,19 +614,19 @@ export function TradingDashboard() {
                         }`}
                       >
                         {log.level === 'error' ? (
-                          <XCircle className="h-4 w-4 text-red-500 mt-0.5" />
+                          <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
                         ) : log.level === 'warning' ? (
-                          <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
+                          <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
                         ) : (
-                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                         )}
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm">{log.message}</p>
                           <p className="text-xs text-muted-foreground">
                             {new Date(log.createdAt).toLocaleTimeString()}
                           </p>
                         </div>
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs hidden sm:inline-flex">
                           {log.category}
                         </Badge>
                       </div>
@@ -1260,98 +1295,100 @@ export function TradingDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Token</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Entry Price</TableHead>
-                      <TableHead>Current Value</TableHead>
-                      <TableHead>P&L</TableHead>
-                      <TableHead>Stop Loss</TableHead>
-                      <TableHead>Take Profit</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {positions.map((position) => (
-                      <TableRow key={position.id}>
-                        <TableCell className="font-medium">
-                          {position.tokenSymbol || 'Unknown'}
-                        </TableCell>
-                        <TableCell>{position.amount.toFixed(4)}</TableCell>
-                        <TableCell>${position.entryPrice.toFixed(6)}</TableCell>
-                        <TableCell>
-                          ${(position.currentValue || position.valueIn).toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={
-                              (position.profitLossPercent || 0) >= 0
-                                ? 'text-green-500'
-                                : 'text-red-500'
-                            }
-                          >
-                            {(position.profitLossPercent || 0) >= 0 ? '+' : ''}
-                            {(position.profitLossPercent || 0).toFixed(2)}%
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {position.stopLossPrice
-                            ? `$${position.stopLossPrice.toFixed(6)}`
-                            : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {position.takeProfitPrice
-                            ? `$${position.takeProfitPrice.toFixed(6)}`
-                            : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="destructive" size="sm">
-                                Close
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Close Position?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will sell all {position.tokenSymbol} tokens at market price.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={async () => {
-                                    await fetch('/api/positions', {
-                                      method: 'PUT',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({
-                                        id: position.id,
-                                        action: 'close',
-                                      }),
-                                    });
-                                    fetchPositions();
-                                  }}
-                                >
-                                  Close Position
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {positions.length === 0 && (
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <Table className="min-w-[700px] sm:min-w-0">
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground">
-                          No open positions
-                        </TableCell>
+                        <TableHead>Token</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Entry Price</TableHead>
+                        <TableHead>Current Value</TableHead>
+                        <TableHead>P&L</TableHead>
+                        <TableHead className="hidden sm:table-cell">Stop Loss</TableHead>
+                        <TableHead className="hidden sm:table-cell">Take Profit</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {positions.map((position) => (
+                        <TableRow key={position.id}>
+                          <TableCell className="font-medium">
+                            {position.tokenSymbol || 'Unknown'}
+                          </TableCell>
+                          <TableCell>{position.amount.toFixed(4)}</TableCell>
+                          <TableCell>${position.entryPrice.toFixed(6)}</TableCell>
+                          <TableCell>
+                            ${(position.currentValue || position.valueIn).toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={
+                                (position.profitLossPercent || 0) >= 0
+                                  ? 'text-green-500'
+                                  : 'text-red-500'
+                              }
+                            >
+                              {(position.profitLossPercent || 0) >= 0 ? '+' : ''}
+                              {(position.profitLossPercent || 0).toFixed(2)}%
+                            </span>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            {position.stopLossPrice
+                              ? `$${position.stopLossPrice.toFixed(6)}`
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            {position.takeProfitPrice
+                              ? `$${position.takeProfitPrice.toFixed(6)}`
+                              : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm" className="min-h-[44px] sm:min-h-0">
+                                  Close
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Close Position?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will sell all {position.tokenSymbol} tokens at market price.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={async () => {
+                                      await fetch('/api/positions', {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          id: position.id,
+                                          action: 'close',
+                                        }),
+                                      });
+                                      fetchPositions();
+                                    }}
+                                  >
+                                    Close Position
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {positions.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center text-muted-foreground">
+                            No open positions
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1364,85 +1401,87 @@ export function TradingDashboard() {
                 <CardDescription>All executed trades</CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[500px]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Token</TableHead>
-                        <TableHead>Amount In</TableHead>
-                        <TableHead>Amount Out</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>P&L</TableHead>
-                        <TableHead>Time</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {trades.map((trade) => (
-                        <TableRow key={trade.id}>
-                          <TableCell>
-                            <Badge
-                              variant={trade.type === 'buy' ? 'default' : 'secondary'}
-                              className={
-                                trade.type === 'buy'
-                                  ? 'bg-green-500/10 text-green-500'
-                                  : 'bg-red-500/10 text-red-500'
-                              }
-                            >
-                              {trade.type.toUpperCase()}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {trade.tokenSymbol || 'Unknown'}
-                          </TableCell>
-                          <TableCell>{trade.amountIn.toFixed(4)}</TableCell>
-                          <TableCell>{trade.amountOut.toFixed(4)}</TableCell>
-                          <TableCell>${trade.price.toFixed(6)}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={
-                                trade.status === 'completed'
-                                  ? 'bg-green-500/10 text-green-500'
-                                  : trade.status === 'failed'
-                                  ? 'bg-red-500/10 text-red-500'
-                                  : trade.status === 'pending'
-                                  ? 'bg-yellow-500/10 text-yellow-500'
-                                  : ''
-                              }
-                            >
-                              {trade.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {trade.profitLoss !== null ? (
-                              <span
+                <ScrollArea className="h-[400px] sm:h-[500px]">
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[700px] sm:min-w-0">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Token</TableHead>
+                          <TableHead>Amount In</TableHead>
+                          <TableHead>Amount Out</TableHead>
+                          <TableHead>Price</TableHead>
+                          <TableHead className="hidden sm:table-cell">Status</TableHead>
+                          <TableHead>P&L</TableHead>
+                          <TableHead className="hidden md:table-cell">Time</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {trades.map((trade) => (
+                          <TableRow key={trade.id}>
+                            <TableCell>
+                              <Badge
+                                variant={trade.type === 'buy' ? 'default' : 'secondary'}
                                 className={
-                                  trade.profitLoss >= 0 ? 'text-green-500' : 'text-red-500'
+                                  trade.type === 'buy'
+                                    ? 'bg-green-500/10 text-green-500'
+                                    : 'bg-red-500/10 text-red-500'
                                 }
                               >
-                                {trade.profitLoss >= 0 ? '+' : ''}
-                                {trade.profitLoss.toFixed(4)}
-                              </span>
-                            ) : (
-                              '-'
-                            )}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {new Date(trade.createdAt).toLocaleString()}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {trades.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={8} className="text-center text-muted-foreground">
-                            No trade history
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
+                                {trade.type.toUpperCase()}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {trade.tokenSymbol || 'Unknown'}
+                            </TableCell>
+                            <TableCell>{trade.amountIn.toFixed(4)}</TableCell>
+                            <TableCell>{trade.amountOut.toFixed(4)}</TableCell>
+                            <TableCell>${trade.price.toFixed(6)}</TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  trade.status === 'completed'
+                                    ? 'bg-green-500/10 text-green-500'
+                                    : trade.status === 'failed'
+                                    ? 'bg-red-500/10 text-red-500'
+                                    : trade.status === 'pending'
+                                    ? 'bg-yellow-500/10 text-yellow-500'
+                                    : ''
+                                }
+                              >
+                                {trade.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {trade.profitLoss !== null ? (
+                                <span
+                                  className={
+                                    trade.profitLoss >= 0 ? 'text-green-500' : 'text-red-500'
+                                  }
+                                >
+                                  {trade.profitLoss >= 0 ? '+' : ''}
+                                  {trade.profitLoss.toFixed(4)}
+                                </span>
+                              ) : (
+                                '-'
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground hidden md:table-cell">
+                              {new Date(trade.createdAt).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {trades.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center text-muted-foreground">
+                              No trade history
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -1456,12 +1495,12 @@ export function TradingDashboard() {
                 <CardDescription>All bot activities and events</CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[600px]">
+                <ScrollArea className="h-[400px] sm:h-[600px]">
                   <div className="space-y-2">
                     {activityLogs.map((log) => (
                       <div
                         key={log.id}
-                        className={`flex items-start gap-3 rounded-lg p-3 ${
+                        className={`flex items-start gap-2 sm:gap-3 rounded-lg p-2 sm:p-3 ${
                           log.level === 'error'
                             ? 'bg-red-500/10 border border-red-500/20'
                             : log.level === 'warning'
@@ -1471,7 +1510,7 @@ export function TradingDashboard() {
                             : 'bg-muted'
                         }`}
                       >
-                        <div className="mt-0.5">
+                        <div className="mt-0.5 flex-shrink-0">
                           {log.level === 'error' ? (
                             <XCircle className="h-4 w-4 text-red-500" />
                           ) : log.level === 'warning' ? (
@@ -1483,14 +1522,14 @@ export function TradingDashboard() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{log.message}</span>
+                          <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                            <span className="font-medium text-sm sm:text-base">{log.message}</span>
                             <Badge variant="outline" className="text-xs">
                               {log.category}
                             </Badge>
                           </div>
                           {log.details && (
-                            <pre className="mt-1 text-xs text-muted-foreground overflow-x-auto">
+                            <pre className="mt-1 text-xs text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all">
                               {JSON.stringify(JSON.parse(log.details), null, 2)}
                             </pre>
                           )}
@@ -1510,21 +1549,358 @@ export function TradingDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Sniper Tab */}
+          <TabsContent value="sniper" className="space-y-4">
+            <SniperPanel />
+          </TabsContent>
+
+          {/* Help Tab */}
+          <TabsContent value="help" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Getting Started */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5" />
+                    Getting Started
+                  </CardTitle>
+                  <CardDescription>Quick guide to start using the Sniper Bot</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold flex-shrink-0">1</div>
+                      <div>
+                        <p className="font-medium">Connect Your Wallet</p>
+                        <p className="text-sm text-muted-foreground">Go to the Wallet tab and connect your preferred wallet. Supports MetaMask, Rabby, Brave Wallet, Trust Wallet, OKX Wallet, Rainbow, WalletConnect, Ledger, and more.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold flex-shrink-0">2</div>
+                      <div>
+                        <p className="font-medium">Select Network & DEX</p>
+                        <p className="text-sm text-muted-foreground">Choose your target blockchain network and preferred DEX. The bot supports 18+ chains including Ethereum, PulseChain, Base, Arbitrum, Optimism, Polygon, BSC, and more.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold flex-shrink-0">3</div>
+                      <div>
+                        <p className="font-medium">Configure Trading Parameters</p>
+                        <p className="text-sm text-muted-foreground">Set up your buy amount, slippage tolerance, gas settings, and risk management (Take Profit, Stop Loss, Trailing Stop) in the Config or Sniper tab.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold flex-shrink-0">4</div>
+                      <div>
+                        <p className="font-medium">Add Sniper Targets</p>
+                        <p className="text-sm text-muted-foreground">Enter token contract addresses to monitor. The bot will automatically verify tokens and check for liquidity before executing trades.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold flex-shrink-0">5</div>
+                      <div>
+                        <p className="font-medium">Start the Bot</p>
+                        <p className="text-sm text-muted-foreground">Click the Start Bot button in the header to begin automated trading. Monitor positions and activity in real-time from the Dashboard.</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Features Overview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5" />
+                    Features Overview
+                  </CardTitle>
+                  <CardDescription>Key features of the Sniper Bot</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 rounded-lg border">
+                    <Crosshair className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium">Multi-Chain Sniper</p>
+                      <p className="text-sm text-muted-foreground">Monitor and snipe tokens across 18+ chains including Ethereum, PulseChain, Base, Arbitrum, and more</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg border">
+                    <Target className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium">Auto-Sweep Mode</p>
+                      <p className="text-sm text-muted-foreground">Automatically scan multiple chains for new liquidity and snipe opportunities</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg border">
+                    <Shield className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium">Risk Management</p>
+                      <p className="text-sm text-muted-foreground">Take Profit, Stop Loss, and Trailing Stop features to protect your investments</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg border">
+                    <Activity className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium">Real-Time Monitoring</p>
+                      <p className="text-sm text-muted-foreground">Live price feeds, position tracking, and activity logs for complete visibility</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* DEX Support */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <LineChart className="h-5 w-5" />
+                    Supported DEXes
+                  </CardTitle>
+                  <CardDescription>Trade on your favorite decentralized exchanges</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="p-2 rounded bg-muted/50">
+                      <p className="font-medium">Ethereum</p>
+                      <p className="text-xs text-muted-foreground">Uniswap, SushiSwap, 1inch, KyberSwap</p>
+                    </div>
+                    <div className="p-2 rounded bg-muted/50">
+                      <p className="font-medium">PulseChain</p>
+                      <p className="text-xs text-muted-foreground">PulseX, Piteas, 9inch</p>
+                    </div>
+                    <div className="p-2 rounded bg-muted/50">
+                      <p className="font-medium">Base</p>
+                      <p className="text-xs text-muted-foreground">Uniswap, BaseSwap, Aerodrome</p>
+                    </div>
+                    <div className="p-2 rounded bg-muted/50">
+                      <p className="font-medium">Arbitrum</p>
+                      <p className="text-xs text-muted-foreground">Uniswap, Camelot, Ramses</p>
+                    </div>
+                    <div className="p-2 rounded bg-muted/50">
+                      <p className="font-medium">BSC</p>
+                      <p className="text-xs text-muted-foreground">PancakeSwap, BiSwap, Thena</p>
+                    </div>
+                    <div className="p-2 rounded bg-muted/50">
+                      <p className="font-medium">Polygon</p>
+                      <p className="text-xs text-muted-foreground">QuickSwap, SushiSwap, Dystopia</p>
+                    </div>
+                    <div className="p-2 rounded bg-muted/50">
+                      <p className="font-medium">Avalanche</p>
+                      <p className="text-xs text-muted-foreground">Trader Joe, Pangolin, Lydia</p>
+                    </div>
+                    <div className="p-2 rounded bg-muted/50">
+                      <p className="font-medium">Solana</p>
+                      <p className="text-xs text-muted-foreground">Raydium, Jupiter, Orca</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* FAQ */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageCircle className="h-5 w-5" />
+                    Frequently Asked Questions
+                  </CardTitle>
+                  <CardDescription>Common questions and answers</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <p className="font-medium">What is Auto-Sweep mode?</p>
+                    <p className="text-sm text-muted-foreground">Auto-Sweep automatically scans selected chains for new token pairs and liquidity additions, executing snipes based on your configured parameters. Perfect for finding new opportunities across multiple chains simultaneously.</p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="font-medium">How do Take Profit and Stop Loss work?</p>
+                    <p className="text-sm text-muted-foreground">Take Profit automatically sells when your position reaches a target profit percentage. Stop Loss sells when the price drops to limit losses. Trailing Stop follows price movements upward while protecting gains.</p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="font-medium">What is MEV Protection?</p>
+                    <p className="text-sm text-muted-foreground">MEV Protection helps prevent front-running and sandwich attacks by using private transaction pools or flashbots when available. This ensures your trades execute at the expected price.</p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="font-medium">Are my private keys safe?</p>
+                    <p className="text-sm text-muted-foreground">Yes! Your wallet is only used for signing transactions. Private keys are never stored or transmitted to our servers. All sensitive operations happen locally in your browser.</p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="font-medium">What slippage should I use?</p>
+                    <p className="text-sm text-muted-foreground">For stable coins: 0.1-0.5%. For established tokens: 0.5-2%. For new/volatile tokens: 3-10%. Higher slippage increases success rate but may result in worse prices.</p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="font-medium">Why did my transaction fail?</p>
+                    <p className="text-sm text-muted-foreground">Common causes: insufficient gas, slippage too low, front-running, or token contract restrictions. Check the Activity tab for detailed error messages. Try increasing slippage or gas price.</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Risk Management Guide */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Risk Management Guide
+                  </CardTitle>
+                  <CardDescription>Protect your investments with proper risk controls</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <p className="font-medium">Take Profit Strategies</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground pl-6">Set TP at 20-50% for quick profits on volatile tokens. Use partial sells (25-50% of position) to secure gains while keeping exposure. For longer holds, consider 100-500% TP targets.</p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <TrendingDown className="h-4 w-4 text-red-500" />
+                      <p className="font-medium">Stop Loss Best Practices</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground pl-6">Set SL at 10-20% below entry for new tokens. Use trailing stops (5-15% trail) to lock in profits on winning positions. Consider fixed SL for less volatile tokens.</p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-blue-500" />
+                      <p className="font-medium">Position Sizing</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground pl-6">Never risk more than 1-5% of your portfolio per trade. Use Kelly Criterion for optimal sizing. Set max daily loss limits to prevent cascade failures.</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Troubleshooting */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5" />
+                    Troubleshooting
+                  </CardTitle>
+                  <CardDescription>Common issues and solutions</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                    <p className="font-medium text-sm">Wallet Not Connecting</p>
+                    <p className="text-xs text-muted-foreground mt-1">Refresh the page, clear browser cache, or try a different browser. Ensure you have the wallet extension installed and unlocked.</p>
+                  </div>
+                  <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                    <p className="font-medium text-sm">Transactions Pending Too Long</p>
+                    <p className="text-xs text-muted-foreground mt-1">Network congestion may be high. Try increasing gas price or use a custom RPC endpoint. Check the network status in the footer.</p>
+                  </div>
+                  <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                    <p className="font-medium text-sm">Insufficient Balance Error</p>
+                    <p className="text-xs text-muted-foreground mt-1">Ensure you have enough native tokens for gas (ETH, MATIC, BNB, etc.) plus the trade amount. Check the Wallet tab for balances across chains.</p>
+                  </div>
+                  <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                    <p className="font-medium text-sm">Price Not Updating</p>
+                    <p className="text-xs text-muted-foreground mt-1">WebSocket connection may be interrupted. Click the Refresh button in the header to reconnect. Check the connection status badge.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Security Notice */}
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertTitle>Security Best Practices</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc list-inside space-y-1 mt-2">
+                  <li>Never share your seed phrase or private keys with anyone</li>
+                  <li>Always verify token addresses before trading - scammers create fake tokens</li>
+                  <li>Start with small amounts to test your configuration</li>
+                  <li>Use hardware wallets (Ledger, Trezor) for larger amounts</li>
+                  <li>Be cautious of tokens with unusual warnings or no audit</li>
+                  <li>Double-check URLs to avoid phishing sites</li>
+                  <li>Revoke token approvals after trading on unfamiliar DEXes</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+
+            {/* Keyboard Shortcuts */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Quick Tips
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div className="flex items-start gap-2">
+                    <Badge variant="outline" className="flex-shrink-0">Sync</Badge>
+                    <span className="text-muted-foreground">Click &quot;Sync Config&quot; in Sniper tab to import settings from Config tab</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Badge variant="outline" className="flex-shrink-0">Auto</Badge>
+                    <span className="text-muted-foreground">Enable &quot;Auto Approve&quot; to skip manual token approvals for faster sniping</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Badge variant="outline" className="flex-shrink-0">Multi</Badge>
+                    <span className="text-muted-foreground">Click on wallet balance cards to quickly switch chains in Sniper tab</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Support Links */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5" />
+                  Need More Help?
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-3">
+                  <Button variant="outline" asChild>
+                    <a href="https://docs.example.com" target="_blank" rel="noopener noreferrer">
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      Documentation
+                      <ExternalLink className="ml-2 h-3 w-3" />
+                    </a>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <a href="https://discord.gg/example" target="_blank" rel="noopener noreferrer">
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      Discord Community
+                      <ExternalLink className="ml-2 h-3 w-3" />
+                    </a>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <a href="https://github.com/bobmitx/sniper-bot" target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      GitHub Repository
+                      <ExternalLink className="ml-2 h-3 w-3" />
+                    </a>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Comprehensive Documentation */}
+            <Separator className="my-6" />
+            <DocumentationPanel />
+          </TabsContent>
         </Tabs>
       </main>
 
       {/* Footer */}
-      <footer className="sticky bottom-0 mt-auto border-t bg-background py-4">
-        <div className="container flex items-center justify-between px-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-4">
-            <span>Sniper Bot v1.0</span>
-            <Separator orientation="vertical" className="h-4" />
-            <span>Network: {botConfig?.network || 'Not configured'}</span>
-            <Separator orientation="vertical" className="h-4" />
-            <span>Exchange: {botConfig?.exchange || 'Not configured'}</span>
+      <footer className="sticky bottom-0 mt-auto border-t bg-background py-3 sm:py-4">
+        <div className="container flex items-center justify-between px-3 sm:px-4 text-xs sm:text-sm text-muted-foreground gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto">
+            <span className="whitespace-nowrap">Sniper Bot v1.0</span>
+            <Separator orientation="vertical" className="h-4 hidden sm:block" />
+            <span className="hidden sm:inline whitespace-nowrap">Network: {botConfig?.network || 'N/A'}</span>
+            <Separator orientation="vertical" className="h-4 hidden md:block" />
+            <span className="hidden md:inline whitespace-nowrap">Exchange: {botConfig?.exchange || 'N/A'}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
             <LiveTime />
           </div>
         </div>

@@ -114,7 +114,7 @@ export function WalletConnection() {
             </AlertDescription>
           </Alert>
           
-          <Button onClick={openConnectModal} className="w-full" size="lg">
+          <Button onClick={openConnectModal} className="w-full min-h-[44px] sm:min-h-0" size="lg">
             <Wallet className="mr-2 h-5 w-5" />
             Connect Wallet
           </Button>
@@ -152,10 +152,10 @@ export function WalletConnection() {
       <CardContent className="space-y-4">
         {/* Network Status */}
         {chain && (
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 p-3 rounded-lg bg-muted">
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${isCorrectNetwork ? 'bg-green-500' : 'bg-yellow-500'}`} />
-              <span className="font-medium">{chain.name}</span>
+              <span className="font-medium text-sm sm:text-base">{chain.name}</span>
             </div>
             {!isCorrectNetwork && botConfig?.network && (
               <Button 
@@ -163,30 +163,31 @@ export function WalletConnection() {
                 variant="outline" 
                 onClick={switchToConfiguredNetwork}
                 disabled={isSwitchingChain}
+                className="min-h-[44px] sm:min-h-0 text-xs sm:text-sm"
               >
-                Switch to {botConfig.network}
+                <span className="hidden sm:inline">Switch to {botConfig.network}</span>
+                <span className="sm:hidden">Switch</span>
               </Button>
             )}
           </div>
         )}
-
         {/* Address & Balance */}
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+          <div className="w-full sm:w-auto">
             <p className="text-sm text-muted-foreground">Address</p>
             <div className="flex items-center gap-2">
               <code className="text-sm">{formatAddress(address!)}</code>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={copyAddress}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-6 sm:w-6 min-h-[44px] sm:min-h-0" onClick={copyAddress}>
                 {copied ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
               </Button>
-              <a href={getExplorerUrl()} target="_blank" rel="noopener noreferrer">
+              <a href={getExplorerUrl()} target="_blank" rel="noopener noreferrer" className="p-2 sm:p-0">
                 <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-primary" />
               </a>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right w-full sm:w-auto">
             <p className="text-sm text-muted-foreground">Balance</p>
-            <p className="font-bold">
+            <p className="font-bold text-base sm:text-lg">
               {balance ? parseFloat(formatUnits(balance.value, balance.decimals)).toFixed(4) : '0.0000'} 
               {balance?.symbol || chain ? ` ${nativeCurrencySymbols[chain?.id || 1]}` : ''}
             </p>
@@ -196,7 +197,7 @@ export function WalletConnection() {
         {/* Wallet Actions */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full min-h-[44px] sm:min-h-0">
               <Wallet className="mr-2 h-4 w-4" />
               {formatAddress(address!)}
               <ChevronDown className="ml-auto h-4 w-4" />
@@ -222,10 +223,10 @@ export function WalletConnection() {
         </DropdownMenu>
 
         {/* Security Settings */}
-        <div className="space-y-3 pt-4 border-t">
-          <div className="flex items-center justify-between">
+        <div className="space-y-3 sm:space-y-3 pt-4 border-t">
+          <div className="flex items-center justify-between py-1 sm:py-0">
             <div className="space-y-0.5">
-              <Label className="flex items-center gap-2">
+              <Label className="flex items-center gap-2 text-sm sm:text-base">
                 <Lock className="h-4 w-4" />
                 Auto-approve Spending
               </Label>
@@ -240,12 +241,13 @@ export function WalletConnection() {
                   setBotConfig({ ...botConfig, autoApprove: checked });
                 }
               }}
+              className="scale-110 sm:scale-100"
             />
           </div>
           
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between py-1 sm:py-0">
             <div className="space-y-0.5">
-              <Label className="flex items-center gap-2">
+              <Label className="flex items-center gap-2 text-sm sm:text-base">
                 <Shield className="h-4 w-4" />
                 MEV Protection
               </Label>
@@ -260,12 +262,13 @@ export function WalletConnection() {
                   setBotConfig({ ...botConfig, mevProtection: checked });
                 }
               }}
+              className="scale-110 sm:scale-100"
             />
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between py-1 sm:py-0">
             <div className="space-y-0.5">
-              <Label className="flex items-center gap-2">
+              <Label className="flex items-center gap-2 text-sm sm:text-base">
                 <AlertTriangle className="h-4 w-4" />
                 Flash Loan Detection
               </Label>
@@ -280,6 +283,7 @@ export function WalletConnection() {
                   setBotConfig({ ...botConfig, flashLoanDetection: checked });
                 }
               }}
+              className="scale-110 sm:scale-100"
             />
           </div>
         </div>
