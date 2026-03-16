@@ -209,6 +209,10 @@ export function TradingDashboard() {
       import('socket.io-client').then(({ io }) => {
         const socket = io('/?XTransformPort=3003', {
           transports: ['websocket'],
+          reconnection: true,
+          reconnectionAttempts: 10,
+          reconnectionDelay: 1000,
+          timeout: 10000,
         });
         socketRef.current = socket as unknown as SocketType;
 
@@ -217,9 +221,14 @@ export function TradingDashboard() {
           console.log('WebSocket connected');
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', (reason: string) => {
           setWsConnected(false);
-          console.log('WebSocket disconnected');
+          console.log('WebSocket disconnected:', reason);
+        });
+
+        socket.on('connect_error', (error: Error) => {
+          console.log('WebSocket connection error:', error.message);
+          setWsConnected(false);
         });
 
         socket.on('price_update', (data: { symbol: string; price: number; change: number }) => {
