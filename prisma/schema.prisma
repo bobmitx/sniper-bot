@@ -1,0 +1,222 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Bot Configuration - Main settings for the sniper bot
+model BotConfig {
+  id                String   @id @default(cuid())
+  name              String   @default("Sniper Bot")
+  isActive          Boolean  @default(false)
+  
+  // Exchange Settings
+  exchange          String   @default("uniswap") // uniswap, sushiswap, pancakeswap, etc.
+  network           String   @default("ethereum") // ethereum, bsc, polygon, arbitrum, etc.
+  rpcUrl            String?
+  
+  // Target Token
+  targetToken       String?  // Token address to snipe
+  targetTokenSymbol String?
+  targetTokenName   String?
+  baseToken         String   @default("WETH") // Base token for trading (WETH, USDC, etc.)
+  
+  // Trading Strategy
+  strategy          String   @default("momentum") // momentum, mean_reversion, breakout, custom
+  strategyParams    String?  // JSON string for custom strategy parameters
+  
+  // Buy Trigger Conditions
+  buyTriggerType    String   @default("price_drop") // price_drop, volume_spike, liquidity_add, new_pair, custom
+  buyTriggerValue   Float    @default(0.0) // Threshold value for trigger
+  buyAmount         Float    @default(0.1) // Amount in ETH/USD to buy
+  buySlippage       Float    @default(5.0) // Slippage tolerance %
+  buyGasPrice       Float    @default(50.0) // Gas price in gwei
+  buyGasLimit       Int      @default(500000)
+  
+  // Sell Trigger Conditions
+  sellTriggerType   String   @default("take_profit") // take_profit, stop_loss, trailing_stop, time_based, custom
+  sellTriggerValue  Float    @default(0.0) // Threshold value for trigger
+  sellSlippage      Float    @default(5.0)
+  sellGasPrice      Float    @default(50.0)
+  sellGasLimit      Int      @default(500000)
+  
+  // Take Profit Settings
+  takeProfitEnabled Boolean  @default(true)
+  takeProfitPercent Float    @default(50.0) // Take profit at X% gain
+  takeProfitAmount  Float    @default(100.0) // Sell X% of position at take profit
+  
+  // Stop Loss Settings
+  stopLossEnabled   Boolean  @default(true)
+  stopLossPercent   Float    @default(15.0) // Stop loss at X% loss
+  stopLossType      String   @default("fixed") // fixed, trailing, dynamic
+  
+  // Trailing Stop
+  trailingStopEnabled Boolean @default(false)
+  trailingStopPercent Float  @default(10.0)
+  trailingStopActivation Float @default(20.0) // Activate after X% profit
+  
+  // Position Sizing
+  positionSizingType String  @default("fixed") // fixed, percentage, kelly, risk_parity
+  positionSizeValue  Float   @default(0.1) // Fixed amount or percentage
+  maxPositionSize    Float   @default(1.0) // Maximum position size in ETH/USD
+  minPositionSize    Float   @default(0.01) // Minimum position size
+  
+  // Risk Management
+  maxDailyLoss       Float   @default(0.5) // Max daily loss in ETH/USD
+  maxDailyTrades     Int     @default(10)
+  maxOpenPositions   Int     @default(5)
+  cooldownPeriod     Int     @default(300) // Seconds between trades
+  
+  // Auto Settings
+  autoApprove        Boolean @default(false) // Auto-approve token spending
+  mevProtection      Boolean @default(true) // Enable MEV protection
+  flashLoanDetection Boolean @default(true) // Detect flash loan attacks
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  trades            Trade[]
+  positions         Position[]
+  alerts            PriceAlert[]
+}
+
+// Trade History
+model Trade {
+  id              String   @id @default(cuid())
+  botConfigId     String
+  botConfig       BotConfig @relation(fields: [botConfigId], references: [id])
+  positionId      String?
+  position        Position? @relation(fields: [positionId], references: [id])
+  
+  // Trade Details
+  type            String   // buy, sell
+  status          String   @default("pending") // pending, executing, completed, failed, cancelled
+  tokenAddress    String
+  tokenSymbol     String?
+  tokenName       String?
+  
+  // Amounts
+  amountIn        Float    // Input amount
+  amountOut       Float    // Output amount
+  price           Float    // Execution price
+  priceUsd        Float?   // Price in USD
+  
+  // Transaction Details
+  txHash          String?  @unique
+  blockNumber     Int?
+  gasUsed         Float?
+  gasPrice        Float?
+  gasCost         Float?   // Total gas cost in ETH
+  
+  // Execution Info
+  triggerType     String?  // What triggered this trade
+  triggerValue    Float?   // Value that triggered trade
+  slippageActual  Float?   // Actual slippage experienced
+  
+  // Profit/Loss (for sell trades)
+  profitLoss      Float?   // Profit/Loss in ETH
+  profitLossPercent Float? // Profit/Loss percentage
+  profitLossUsd   Float?   // Profit/Loss in USD
+  
+  // Timestamps
+  executedAt      DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  errorMessage    String?
+}
+
+// Active Positions
+model Position {
+  id              String   @id @default(cuid())
+  botConfigId     String
+  botConfig       BotConfig @relation(fields: [botConfigId], references: [id])
+  
+  // Token Info
+  tokenAddress    String
+  tokenSymbol     String?
+  tokenName       String?
+  
+  // Position Details
+  entryPrice      Float    // Entry price
+  entryPriceUsd   Float?   // Entry price in USD
+  amount          Float    // Token amount held
+  valueIn         Float    // ETH/USD invested
+  currentValue    Float?   // Current value
+  
+  // Profit Tracking
+  highestPrice    Float?   // Highest price since entry (for trailing stop)
+  lowestPrice     Float?   // Lowest price since entry
+  
+  // Stop Loss / Take Profit
+  stopLossPrice   Float?
+  takeProfitPrice Float?
+  trailingStopPrice Float?
+  
+  // Status
+  status          String   @default("open") // open, closing, closed
+  openedAt        DateTime @default(now())
+  closedAt        DateTime?
+  updatedAt       DateTime @updatedAt
+  
+  trades          Trade[]
+}
+
+// Price Alerts
+model PriceAlert {
+  id              String   @id @default(cuid())
+  botConfigId     String
+  botConfig       BotConfig @relation(fields: [botConfigId], references: [id])
+  
+  tokenAddress    String
+  tokenSymbol     String?
+  
+  alertType       String   // price_above, price_below, percent_change, volume_spike
+  targetValue     Float
+  currentValue    Float?
+  
+  triggered       Boolean  @default(false)
+  triggeredAt     DateTime?
+  
+  action          String   // notify, buy, sell
+  actionParams    String?  // JSON string for action parameters
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Market Data Cache
+model MarketData {
+  id              String   @id @default(cuid())
+  tokenAddress    String   @unique
+  
+  symbol          String?
+  name            String?
+  decimals        Int?
+  
+  price           Float?
+  priceChange24h  Float?
+  volume24h       Float?
+  marketCap       Float?
+  liquidity       Float?
+  
+  lastUpdated     DateTime @default(now())
+}
+
+// Bot Activity Log
+model ActivityLog {
+  id              String   @id @default(cuid())
+  level           String   @default("info") // debug, info, warning, error
+  category        String   // trade, price, system, security
+  message         String
+  details         String?  // JSON string for additional details
+  
+  createdAt       DateTime @default(now())
+}

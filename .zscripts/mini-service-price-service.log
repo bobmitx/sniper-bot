@@ -1,0 +1,9 @@
+[price-service] Installing dependencies...
+bun install v1.3.10 (30e609e0)
+
++ socket.io@4.8.3
+
+22 packages installed [90.00ms]
+[price-service] Running bun run dev...
+$ bun --hot index.ts
+Price WebSocket service running on port 3003
