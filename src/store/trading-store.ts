@@ -45,6 +45,10 @@ export interface BotConfig {
   autoApprove: boolean;
   mevProtection: boolean;
   flashLoanDetection: boolean;
+  // Auto-Sweep settings
+  autoSweepEnabled: boolean;
+  sweepChains: string;
+  sweepInterval: number;
   // Additional security settings
   mevProtectionEnabled?: boolean;
   flashLoanDetectionEnabled?: boolean;
@@ -149,7 +153,7 @@ interface TradingState {
   wsConnected: boolean;
   
   // Actions
-  setBotConfig: (config: BotConfig) => void;
+  setBotConfig: (config: BotConfig | ((prev: BotConfig | null) => BotConfig | null)) => void;
   setTrades: (trades: Trade[]) => void;
   addTrade: (trade: Trade) => void;
   setPositions: (positions: Position[]) => void;
@@ -179,7 +183,9 @@ export const useTradingStore = create<TradingState>((set) => ({
   wsConnected: false,
   
   // Actions
-  setBotConfig: (config) => set({ botConfig: config }),
+  setBotConfig: (config: BotConfig | ((prev: BotConfig | null) => BotConfig)) => set((state) => ({
+    botConfig: typeof config === 'function' ? config(state.botConfig) : config
+  })),
   setTrades: (trades) => set({ trades }),
   addTrade: (trade) => set((state) => ({ trades: [trade, ...state.trades] })),
   setPositions: (positions) => set({ positions }),

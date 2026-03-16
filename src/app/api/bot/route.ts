@@ -15,6 +15,8 @@ const ALLOWED_CONFIG_FIELDS = new Set([
   'positionSizingType', 'positionSizeValue', 'maxPositionSize', 'minPositionSize',
   'maxDailyLoss', 'maxDailyTrades', 'maxOpenPositions', 'cooldownPeriod',
   'autoApprove', 'mevProtection', 'flashLoanDetection',
+  // Auto-Sweep settings
+  'autoSweepEnabled', 'sweepChains', 'sweepInterval',
 ]);
 
 // Rate limiting store (in-memory, resets on server restart)

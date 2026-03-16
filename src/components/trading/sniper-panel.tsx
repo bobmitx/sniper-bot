@@ -124,6 +124,76 @@ export function SniperPanel() {
   // Track previous config id to avoid unnecessary syncs
   const prevConfigIdRef = useRef<string | null>(null);
   
+  // Debounced save timer for auto-persisting settings
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Save settings to database with debounce
+  const saveSettingsToDatabase = useCallback(async () => {
+    if (!botConfig?.id) return;
+    
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/bot', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          network: selectedChain,
+          exchange: selectedDex,
+          baseToken: selectedBaseToken,
+          buyTriggerType: buyTriggerTypes.join(','),
+          buyTriggerValue: parseFloat(buyTriggerValue) || 5,
+          buyAmount: parseFloat(buyAmount) || 0.1,
+          buySlippage: parseFloat(buySlippage) || 5,
+          buyGasPrice: parseFloat(buyGasPrice) || 0,
+          buyGasLimit: parseInt(buyGasLimit) || 250000,
+          sellSlippage: parseFloat(sellSlippage) || 5,
+          sellGasPrice: parseFloat(sellGasPrice) || 0,
+          sellGasLimit: parseInt(sellGasLimit) || 250000,
+          takeProfitEnabled,
+          takeProfitPercent: parseFloat(takeProfitPercent) || 50,
+          takeProfitAmount: parseFloat(takeProfitAmount) || 100,
+          stopLossEnabled,
+          stopLossPercent: parseFloat(stopLossPercent) || 10,
+          stopLossType,
+          trailingStopEnabled,
+          trailingStopPercent: parseFloat(trailingStopPercent) || 5,
+          trailingStopActivation: parseFloat(trailingStopActivation) || 10,
+          autoApprove,
+          mevProtection,
+          // Auto-Sweep settings
+          autoSweepEnabled,
+          sweepChains: sweepChains.join(','),
+          sweepInterval: parseInt(sweepInterval) || 30,
+        }),
+      });
+      
+      if (response.ok) {
+        console.log('✅ Settings saved to database');
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [botConfig?.id, selectedChain, selectedDex, selectedBaseToken, buyTriggerTypes, buyTriggerValue, buyAmount, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, autoApprove, mevProtection, autoSweepEnabled, sweepChains, sweepInterval]);
+  
+  // Debounced save - saves 2 seconds after last change
+  const debouncedSave = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      saveSettingsToDatabase();
+    }, 2000);
+  }, [saveSettingsToDatabase]);
+  
+  // Helper to mark settings as modified and trigger debounced save
+  const markModifiedAndSave = useCallback(() => {
+    setUserModifiedSettings(true);
+    debouncedSave();
+  }, [debouncedSave]);
+  
   // Toggle trigger type selection (multi-select)
   const handleTriggerTypeToggle = useCallback((type: string) => {
     setBuyTriggerTypes(prev => {
@@ -134,8 +204,8 @@ export function SniperPanel() {
       }
       return [...prev, type];
     });
-    setUserModifiedSettings(true);
-  }, []);
+    markModifiedAndSave();
+  }, [markModifiedAndSave]);
   
   // Manual sync from botConfig - only when user clicks "Sync from Config" or on initial load
   const handleSyncFromConfig = useCallback(() => {
@@ -145,7 +215,11 @@ export function SniperPanel() {
       if (botConfig.network) setSelectedChain(botConfig.network);
       if (botConfig.exchange) setSelectedDex(botConfig.exchange);
       if (botConfig.baseToken) setSelectedBaseToken(botConfig.baseToken);
-      if (botConfig.buyTriggerType) setBuyTriggerTypes([botConfig.buyTriggerType]);
+      if (botConfig.buyTriggerType) {
+        // Handle both comma-separated and single value
+        const types = botConfig.buyTriggerType.split(',').filter(Boolean);
+        setBuyTriggerTypes(types.length > 0 ? types : ['liquidity_add']);
+      }
       if (botConfig.buyTriggerValue) setBuyTriggerValue(botConfig.buyTriggerValue.toString());
       if (botConfig.buyAmount) setBuyAmount(botConfig.buyAmount.toString());
       if (botConfig.buySlippage) setBuySlippage(botConfig.buySlippage.toString());
@@ -166,6 +240,13 @@ export function SniperPanel() {
       if (botConfig.autoApprove !== undefined) setAutoApprove(botConfig.autoApprove);
       if (botConfig.mevProtection !== undefined) setMevProtection(botConfig.mevProtection);
       if (botConfig.targetToken) setTokenAddress(botConfig.targetToken);
+      // Auto-Sweep settings
+      if (botConfig.autoSweepEnabled !== undefined) setAutoSweepEnabled(botConfig.autoSweepEnabled);
+      if (botConfig.sweepChains) {
+        const chains = botConfig.sweepChains.split(',').filter(Boolean);
+        setSweepChains(chains);
+      }
+      if (botConfig.sweepInterval) setSweepInterval(botConfig.sweepInterval.toString());
       setUserModifiedSettings(false);
     });
   }, [botConfig]);
@@ -207,7 +288,7 @@ export function SniperPanel() {
   // Handle chain change - reset DEX and base token if needed
   const handleChainChange = useCallback((newChain: string) => {
     setSelectedChain(newChain);
-    setUserModifiedSettings(true);
+    markModifiedAndSave();
     const newDexes = getAvailableDexes(newChain);
     const newBaseTokens = getBaseTokens(newChain);
     
@@ -217,12 +298,14 @@ export function SniperPanel() {
 
   // Handle auto-sweep chain selection
   const handleSweepChainToggle = useCallback((chainKey: string) => {
-    setSweepChains(prev => 
-      prev.includes(chainKey)
+    setSweepChains(prev => {
+      const newChains = prev.includes(chainKey)
         ? prev.filter(c => c !== chainKey)
-        : [...prev, chainKey]
-    );
-  }, []);
+        : [...prev, chainKey];
+      return newChains;
+    });
+    markModifiedAndSave();
+  }, [markModifiedAndSave]);
 
   // Handle token verification
   const handleVerifyToken = useCallback(() => {
@@ -407,6 +490,13 @@ export function SniperPanel() {
                   <span className="sm:hidden">Active</span>
                 </Badge>
               )}
+              {isSaving && (
+                <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs">
+                  <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
+                  <span className="hidden sm:inline">Saving...</span>
+                  <span className="sm:hidden">...</span>
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {botConfig && (
@@ -478,7 +568,7 @@ export function SniperPanel() {
                       }`}
                       onClick={() => {
                         setSelectedChain(chain.name);
-                        setUserModifiedSettings(true);
+                        markModifiedAndSave();
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -566,7 +656,7 @@ export function SniperPanel() {
                 value={tokenAddress}
                 onChange={(e) => {
                   setTokenAddress(e.target.value);
-                  setUserModifiedSettings(true);
+                  markModifiedAndSave();
                 }}
                 className={`min-h-[44px] sm:min-h-0 ${verifiedToken ? 'border-green-500' : ''}`}
               />
@@ -665,7 +755,7 @@ export function SniperPanel() {
               value={buyAmount}
               onChange={(e) => {
                 setBuyAmount(e.target.value);
-                setUserModifiedSettings(true);
+                markModifiedAndSave();
               }}
               className="min-h-[44px] sm:min-h-0"
             />
@@ -681,7 +771,7 @@ export function SniperPanel() {
               value={minLiquidity}
               onChange={(e) => {
                 setMinLiquidity(e.target.value);
-                setUserModifiedSettings(true);
+                markModifiedAndSave();
               }}
               className="min-h-[44px] sm:min-h-0"
             />
@@ -694,7 +784,7 @@ export function SniperPanel() {
               checked={autoApprove} 
               onCheckedChange={(checked) => {
                 setAutoApprove(checked);
-                setUserModifiedSettings(true);
+                markModifiedAndSave();
               }} 
             />
           </div>
@@ -705,7 +795,7 @@ export function SniperPanel() {
               checked={mevProtection} 
               onCheckedChange={(checked) => {
                 setMevProtection(checked);
-                setUserModifiedSettings(true);
+                markModifiedAndSave();
               }} 
             />
           </div>
@@ -785,18 +875,13 @@ export function SniperPanel() {
                     onClick={() => handleTriggerTypeToggle(trigger.value)}
                   >
                     <Checkbox
-                      id={`trigger-${trigger.value}`}
                       checked={buyTriggerTypes.includes(trigger.value)}
-                      onCheckedChange={() => handleTriggerTypeToggle(trigger.value)}
-                      className="mt-0.5"
+                      className="mt-0.5 pointer-events-none"
                     />
                     <div className="grid gap-0.5 leading-none">
-                      <label
-                        htmlFor={`trigger-${trigger.value}`}
-                        className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
+                      <span className="text-xs font-medium leading-none cursor-pointer">
                         {trigger.label}
-                      </label>
+                      </span>
                       <span className="text-xs text-muted-foreground hidden sm:inline">{trigger.desc}</span>
                     </div>
                   </div>
@@ -819,18 +904,43 @@ export function SniperPanel() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Trigger Sensitivity</Label>
-                  <span className="text-xs text-muted-foreground">{buyTriggerValue}%</span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max="50"
+                      value={buyTriggerValue}
+                      onChange={(e) => {
+                        setBuyTriggerValue(e.target.value);
+                        markModifiedAndSave();
+                      }}
+                      onBlur={() => {
+                        const num = parseFloat(buyTriggerValue);
+                        if (isNaN(num) || num < 0.5) {
+                          setBuyTriggerValue('0.5');
+                        } else if (num > 50) {
+                          setBuyTriggerValue('50');
+                        }
+                      }}
+                      className="w-16 h-8 text-center text-xs"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
                 </div>
                 <Slider
                   value={[parseFloat(buyTriggerValue) || 0]}
                   onValueChange={([value]) => {
                     setBuyTriggerValue(value.toString());
-                    setUserModifiedSettings(true);
+                    markModifiedAndSave();
                   }}
                   max={50}
                   step={0.5}
                   className="h-2"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Lower values = more sensitive (more trades). Higher values = less sensitive (fewer trades).
+                </p>
               </div>
             )}
 
@@ -843,7 +953,7 @@ export function SniperPanel() {
                   value={buySlippage}
                   onChange={(e) => {
                     setBuySlippage(e.target.value);
-                    setUserModifiedSettings(true);
+                    markModifiedAndSave();
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -855,7 +965,7 @@ export function SniperPanel() {
                   value={buyGasPrice}
                   onChange={(e) => {
                     setBuyGasPrice(e.target.value);
-                    setUserModifiedSettings(true);
+                    markModifiedAndSave();
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -868,7 +978,7 @@ export function SniperPanel() {
                 value={buyGasLimit}
                 onChange={(e) => {
                   setBuyGasLimit(e.target.value);
-                  setUserModifiedSettings(true);
+                  markModifiedAndSave();
                 }}
                 className="min-h-[44px] sm:min-h-0 sm:h-8"
               />
@@ -895,7 +1005,7 @@ export function SniperPanel() {
                   value={sellSlippage}
                   onChange={(e) => {
                     setSellSlippage(e.target.value);
-                    setUserModifiedSettings(true);
+                    markModifiedAndSave();
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -907,7 +1017,7 @@ export function SniperPanel() {
                   value={sellGasPrice}
                   onChange={(e) => {
                     setSellGasPrice(e.target.value);
-                    setUserModifiedSettings(true);
+                    markModifiedAndSave();
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -927,7 +1037,7 @@ export function SniperPanel() {
                   checked={takeProfitEnabled}
                   onCheckedChange={(checked) => {
                     setTakeProfitEnabled(checked);
-                    setUserModifiedSettings(true);
+                    markModifiedAndSave();
                   }}
                 />
               </div>
@@ -942,7 +1052,7 @@ export function SniperPanel() {
                         value={takeProfitPercent}
                         onChange={(e) => {
                           setTakeProfitPercent(e.target.value);
-                          setUserModifiedSettings(true);
+                          markModifiedAndSave();
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -956,7 +1066,7 @@ export function SniperPanel() {
                         value={takeProfitAmount}
                         onChange={(e) => {
                           setTakeProfitAmount(e.target.value);
-                          setUserModifiedSettings(true);
+                          markModifiedAndSave();
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="100"
@@ -972,7 +1082,7 @@ export function SniperPanel() {
                       value={[parseFloat(takeProfitPercent) || 0]}
                       onValueChange={([value]) => {
                         setTakeProfitPercent(value.toString());
-                        setUserModifiedSettings(true);
+                        markModifiedAndSave();
                       }}
                       max={10000}
                       step={1}
@@ -996,7 +1106,7 @@ export function SniperPanel() {
                   checked={stopLossEnabled}
                   onCheckedChange={(checked) => {
                     setStopLossEnabled(checked);
-                    setUserModifiedSettings(true);
+                    markModifiedAndSave();
                   }}
                 />
               </div>
@@ -1011,7 +1121,7 @@ export function SniperPanel() {
                         value={stopLossPercent}
                         onChange={(e) => {
                           setStopLossPercent(e.target.value);
-                          setUserModifiedSettings(true);
+                          markModifiedAndSave();
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1021,7 +1131,7 @@ export function SniperPanel() {
                       <Label className="text-xs">Stop Type</Label>
                       <Select value={stopLossType} onValueChange={(value) => {
                         setStopLossType(value);
-                        setUserModifiedSettings(true);
+                        markModifiedAndSave();
                       }}>
                         <SelectTrigger className="min-h-[44px] sm:min-h-0 sm:h-8">
                           <SelectValue />
@@ -1043,7 +1153,7 @@ export function SniperPanel() {
                       value={[parseFloat(stopLossPercent) || 0]}
                       onValueChange={([value]) => {
                         setStopLossPercent(value.toString());
-                        setUserModifiedSettings(true);
+                        markModifiedAndSave();
                       }}
                       max={10000}
                       step={0.5}
@@ -1067,7 +1177,7 @@ export function SniperPanel() {
                   checked={trailingStopEnabled}
                   onCheckedChange={(checked) => {
                     setTrailingStopEnabled(checked);
-                    setUserModifiedSettings(true);
+                    markModifiedAndSave();
                   }}
                 />
               </div>
@@ -1082,7 +1192,7 @@ export function SniperPanel() {
                         value={trailingStopPercent}
                         onChange={(e) => {
                           setTrailingStopPercent(e.target.value);
-                          setUserModifiedSettings(true);
+                          markModifiedAndSave();
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1096,7 +1206,7 @@ export function SniperPanel() {
                         value={trailingStopActivation}
                         onChange={(e) => {
                           setTrailingStopActivation(e.target.value);
-                          setUserModifiedSettings(true);
+                          markModifiedAndSave();
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1112,7 +1222,7 @@ export function SniperPanel() {
                       value={[parseFloat(trailingStopPercent) || 0]}
                       onValueChange={([value]) => {
                         setTrailingStopPercent(value.toString());
-                        setUserModifiedSettings(true);
+                        markModifiedAndSave();
                       }}
                       max={10000}
                       step={0.5}
@@ -1140,7 +1250,7 @@ export function SniperPanel() {
                 checked={mevProtection} 
                 onCheckedChange={(checked) => {
                   setMevProtection(checked);
-                  setUserModifiedSettings(true);
+                  markModifiedAndSave();
                 }} 
               />
             </div>
@@ -1150,7 +1260,7 @@ export function SniperPanel() {
                 checked={autoApprove} 
                 onCheckedChange={(checked) => {
                   setAutoApprove(checked);
-                  setUserModifiedSettings(true);
+                  markModifiedAndSave();
                 }} 
               />
             </div>
@@ -1173,7 +1283,10 @@ export function SniperPanel() {
               <Label className="text-xs sm:text-sm">Enable Auto-Sweep</Label>
               <Switch
                 checked={autoSweepEnabled}
-                onCheckedChange={setAutoSweepEnabled}
+                onCheckedChange={(checked) => {
+                  setAutoSweepEnabled(checked);
+                  markModifiedAndSave();
+                }}
               />
             </div>
 
@@ -1191,9 +1304,9 @@ export function SniperPanel() {
                         >
                           <Checkbox
                             checked={sweepChains.includes(chainKey)}
-                            onCheckedChange={() => handleSweepChainToggle(chainKey)}
+                            className="pointer-events-none"
                           />
-                          <Label className="text-xs cursor-pointer">{getChainName(chainKey)}</Label>
+                          <span className="text-xs cursor-pointer">{getChainName(chainKey)}</span>
                         </div>
                       ))}
                     </div>
@@ -1205,7 +1318,10 @@ export function SniperPanel() {
                   <Input
                     type="number"
                     value={sweepInterval}
-                    onChange={(e) => setSweepInterval(e.target.value)}
+                    onChange={(e) => {
+                      setSweepInterval(e.target.value);
+                      markModifiedAndSave();
+                    }}
                     className="min-h-[44px] sm:min-h-0 sm:h-8"
                   />
                 </div>

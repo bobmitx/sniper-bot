@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
 import { useTradingStore } from '@/store/trading-store';
 import { WalletConnection } from '@/components/wallet/wallet-connection';
+import { chainConfigs, getPopularTokensForChain, type ChainName } from '@/lib/chain-config';
 
 // Dynamic import for socket.io-client to avoid SSR issues
 type SocketType = {
@@ -58,6 +59,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Activity,
   TrendingUp,
@@ -86,6 +88,8 @@ import {
   BookOpen,
   MessageCircle,
   ExternalLink,
+  Search,
+  Info,
 } from 'lucide-react';
 import { SniperPanel } from '@/components/trading/sniper-panel';
 import { DocumentationPanel } from '@/components/trading/documentation-panel';
@@ -93,7 +97,15 @@ import { ThemeToggleCompact } from '@/components/theme-toggle';
 
 export function TradingDashboard() {
   const socketRef = useRef<SocketType | null>(null);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [tokenSearchQuery, setTokenSearchQuery] = useState('');
+  const [tokenSearchResults, setTokenSearchResults] = useState<Array<{symbol: string; name: string; address: string}>>([]);
+  const [isSearchingTokens, setIsSearchingTokens] = useState(false);
+  const [showRpcSuggestions, setShowRpcSuggestions] = useState(false);
+  // Track local input values for better UX (allows typing before saving)
+  const [localInputValues, setLocalInputValues] = useState<Record<string, string>>({});
   const {
     botConfig,
     isLoadingConfig,
@@ -114,6 +126,50 @@ export function TradingDashboard() {
     setIsLoadingPositions,
     updatePosition,
   } = useTradingStore();
+  
+  // Get base tokens for current network
+  const currentBaseTokens = useMemo(() => {
+    const network = botConfig?.network || 'ethereum';
+    return chainConfigs[network as ChainName]?.baseTokens || [{ symbol: 'WETH', address: '' }];
+  }, [botConfig?.network]);
+  
+  // Get RPC URLs for current network
+  const currentRpcUrls = useMemo(() => {
+    const network = botConfig?.network || 'ethereum';
+    return chainConfigs[network as ChainName]?.rpcUrls || [];
+  }, [botConfig?.network]);
+  
+  // Get native token symbol for current network (e.g., ETH, PLS, MATIC, BNB, SOL)
+  const nativeTokenSymbol = useMemo(() => {
+    const network = botConfig?.network || 'ethereum';
+    return chainConfigs[network as ChainName]?.nativeCurrency?.symbol || 'ETH';
+  }, [botConfig?.network]);
+  
+  // Search tokens when query changes
+  useEffect(() => {
+    if (tokenSearchQuery.length < 2) {
+      setTokenSearchResults([]);
+      return;
+    }
+    
+    const searchTokens = async () => {
+      setIsSearchingTokens(true);
+      try {
+        const response = await fetch(`/api/tokens?q=${encodeURIComponent(tokenSearchQuery)}&chain=${botConfig?.network || ''}`);
+        const data = await response.json();
+        if (data.success) {
+          setTokenSearchResults(data.data.slice(0, 10));
+        }
+      } catch {
+        setTokenSearchResults([]);
+      } finally {
+        setIsSearchingTokens(false);
+      }
+    };
+    
+    const debounce = setTimeout(searchTokens, 300);
+    return () => clearTimeout(debounce);
+  }, [tokenSearchQuery, botConfig?.network]);
 
   // Fetch initial data
   const fetchBotConfig = useCallback(async () => {
@@ -158,8 +214,8 @@ export function TradingDashboard() {
     }
   }, [setPositions, setIsLoadingPositions]);
 
-  // Update bot config
-  const updateBotConfig = async (updates: Partial<typeof botConfig>) => {
+  // Immediate update bot config (for critical settings like start/stop)
+  const updateBotConfigImmediate = async (updates: Partial<typeof botConfig>) => {
     if (!botConfig) return;
     try {
       const response = await fetch('/api/bot', {
@@ -174,6 +230,107 @@ export function TradingDashboard() {
     } catch (error) {
       console.error('Failed to update bot config:', error);
     }
+  };
+
+  // Debounced update bot config (for settings that change frequently)
+  const updateBotConfig = useCallback((updates: Record<string, unknown>) => {
+    // Immediately update local state for responsive UI using functional update
+    setBotConfig((prevConfig) => {
+      if (!prevConfig) return prevConfig;
+      return { ...prevConfig, ...updates };
+    });
+    
+    // Clear any existing timer
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    
+    // Debounce the API call
+    saveTimerRef.current = setTimeout(async () => {
+      setIsSavingConfig(true);
+      try {
+        const response = await fetch('/api/bot', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+        const data = await response.json();
+        if (data.success) {
+          setBotConfig(data.data);
+        }
+      } catch (error) {
+        console.error('Failed to update bot config:', error);
+      } finally {
+        setIsSavingConfig(false);
+      }
+    }, 1000); // 1 second debounce for config tab
+  }, [setBotConfig]);
+
+  // Helper function to get input display value (uses local value if typing, otherwise config value)
+  const getInputDisplayValue = (field: string, configValue: number | undefined): string => {
+    // If we have a local value being typed, show that
+    if (field in localInputValues) {
+      return localInputValues[field];
+    }
+    return configValue?.toString() ?? '';
+  };
+
+  // Handle number input change - stores locally, allows typing freely
+  const handleNumberInputChange = (field: string, value: string, min?: number, max?: number) => {
+    // Always update local display value so user can see what they type
+    setLocalInputValues(prev => ({ ...prev, [field]: value }));
+    
+    // If empty or just minus/decimal, don't update the config yet
+    if (value === '' || value === '-' || value === '.') {
+      return;
+    }
+    
+    const num = parseFloat(value);
+    if (!isNaN(num)) {
+      // For partial numbers like "0.", don't save yet - wait for blur
+      if (value.endsWith('.') || value.includes('.') && value.endsWith('0')) {
+        return;
+      }
+      // Clamp to min/max if provided
+      const clampedValue = min !== undefined && max !== undefined 
+        ? Math.min(max, Math.max(min, num))
+        : num;
+      updateBotConfig({ [field]: clampedValue });
+    }
+  };
+
+  // Handle number input blur - save final value and clear local state
+  const handleNumberInputBlur = (field: string, defaultValue: number, min?: number, max?: number) => {
+    // Get the local value that was typed
+    const localValue = localInputValues[field];
+    
+    // Clear local input state
+    setLocalInputValues(prev => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+    
+    // If empty or invalid, restore to default
+    if (localValue === '' || localValue === '-' || localValue === '.') {
+      updateBotConfig({ [field]: defaultValue });
+      return;
+    }
+    
+    const num = parseFloat(localValue);
+    if (isNaN(num)) {
+      updateBotConfig({ [field]: defaultValue });
+      return;
+    }
+    
+    // Clamp to min/max
+    let finalValue = num;
+    if (min !== undefined && num < min) {
+      finalValue = min;
+    } else if (max !== undefined && num > max) {
+      finalValue = max;
+    }
+    updateBotConfig({ [field]: finalValue });
   };
 
   // Toggle bot
@@ -345,6 +502,16 @@ export function TradingDashboard() {
               >
                 <Activity className="mr-1 h-3 w-3 animate-pulse" />
                 Active
+              </Badge>
+            )}
+            {/* Saving indicator */}
+            {isSavingConfig && (
+              <Badge 
+                variant="outline" 
+                className="bg-blue-500/10 text-blue-500 border-blue-500/20 hidden sm:flex"
+              >
+                <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
+                Saving...
               </Badge>
             )}
           </div>
@@ -754,16 +921,79 @@ export function TradingDashboard() {
                         <Target className="h-5 w-5" />
                         Target Token
                       </CardTitle>
-                      <CardDescription>Configure the token to snipe</CardDescription>
+                      <CardDescription>Configure the token to snipe - search or paste address</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {/* Token Search/Input */}
                       <div className="space-y-2">
-                        <Label htmlFor="targetToken">Token Address</Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="targetToken">Token Address or Search</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                                <Search className="h-3 w-3 mr-1" />
+                                Search
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-0" align="end">
+                              <div className="p-2">
+                                <Input
+                                  placeholder="Search by name or symbol..."
+                                  value={tokenSearchQuery}
+                                  onChange={(e) => setTokenSearchQuery(e.target.value)}
+                                  className="mb-2"
+                                />
+                                <ScrollArea className="h-48">
+                                  {isSearchingTokens ? (
+                                    <div className="flex items-center justify-center py-4">
+                                      <RefreshCw className="h-4 w-4 animate-spin" />
+                                    </div>
+                                  ) : tokenSearchResults.length > 0 ? (
+                                    <div className="space-y-1">
+                                      {tokenSearchResults.map((token) => (
+                                        <button
+                                          key={token.address}
+                                          className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-muted text-left"
+                                          onClick={() => {
+                                            updateBotConfig({ 
+                                              targetToken: token.address,
+                                              targetTokenSymbol: token.symbol,
+                                              targetTokenName: token.name,
+                                            });
+                                            setTokenSearchQuery('');
+                                            setTokenSearchResults([]);
+                                          }}
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <div className="font-medium text-sm">{token.symbol}</div>
+                                            <div className="text-xs text-muted-foreground truncate">{token.name}</div>
+                                          </div>
+                                          <div className="text-xs text-muted-foreground truncate max-w-[100px]">
+                                            {token.address.slice(0, 6)}...{token.address.slice(-4)}
+                                          </div>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : tokenSearchQuery.length >= 2 ? (
+                                    <div className="text-center text-sm text-muted-foreground py-4">
+                                      No tokens found
+                                    </div>
+                                  ) : (
+                                    <div className="text-center text-sm text-muted-foreground py-4">
+                                      Type at least 2 characters to search
+                                    </div>
+                                  )}
+                                </ScrollArea>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                         <Input
                           id="targetToken"
-                          placeholder="0x..."
+                          placeholder="0x... or paste token address"
                           value={botConfig.targetToken || ''}
                           onChange={(e) => updateBotConfig({ targetToken: e.target.value })}
+                          className="font-mono text-sm"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -786,12 +1016,34 @@ export function TradingDashboard() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="WETH">WETH</SelectItem>
-                              <SelectItem value="USDC">USDC</SelectItem>
-                              <SelectItem value="USDT">USDT</SelectItem>
-                              <SelectItem value="DAI">DAI</SelectItem>
+                              {currentBaseTokens.map((token) => (
+                                <SelectItem key={token.symbol} value={token.symbol}>
+                                  {token.symbol}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
+                        </div>
+                      </div>
+                      {/* Popular tokens for current chain */}
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Popular tokens on {chainConfigs[botConfig.network as ChainName]?.name || botConfig.network}</Label>
+                        <div className="flex flex-wrap gap-1">
+                          {getPopularTokensForChain(botConfig.network as ChainName).slice(0, 6).map((token) => (
+                            <Button
+                              key={token.address}
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => updateBotConfig({
+                                targetToken: token.address,
+                                targetTokenSymbol: token.symbol,
+                                targetTokenName: token.name,
+                              })}
+                            >
+                              {token.symbol}
+                            </Button>
+                          ))}
                         </div>
                       </div>
                     </CardContent>
@@ -818,21 +1070,11 @@ export function TradingDashboard() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="uniswap">Uniswap</SelectItem>
-                              <SelectItem value="sushiswap">SushiSwap</SelectItem>
-                              <SelectItem value="pancakeswap">PancakeSwap</SelectItem>
-                              <SelectItem value="quickswap">QuickSwap</SelectItem>
-                              <SelectItem value="pulsex">PulseX</SelectItem>
-                              <SelectItem value="piteas">Piteas</SelectItem>
-                              <SelectItem value="baseswap">BaseSwap</SelectItem>
-                              <SelectItem value="camelot">Camelot</SelectItem>
-                              <SelectItem value="traderjoe">Trader Joe</SelectItem>
-                              <SelectItem value="spookyswap">SpookySwap</SelectItem>
-                              <SelectItem value="radioshack">RadioShack</SelectItem>
-                              <SelectItem value="kyberswap">KyberSwap</SelectItem>
-                              <SelectItem value="1inch">1inch</SelectItem>
-                              <SelectItem value="balancer">Balancer</SelectItem>
-                              <SelectItem value="curve">Curve Finance</SelectItem>
+                              {(chainConfigs[botConfig.network as ChainName]?.dexes || ['uniswap']).map((dex) => (
+                                <SelectItem key={dex} value={dex}>
+                                  {dex.charAt(0).toUpperCase() + dex.slice(1).replace(/-/g, ' ')}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
@@ -840,41 +1082,78 @@ export function TradingDashboard() {
                           <Label>Network</Label>
                           <Select
                             value={botConfig.network}
-                            onValueChange={(value) => updateBotConfig({ network: value })}
+                            onValueChange={(value) => {
+                              const chainConfig = chainConfigs[value as ChainName];
+                              updateBotConfig({ 
+                                network: value,
+                                // Auto-select first base token for new chain
+                                baseToken: chainConfig?.baseTokens[0]?.symbol || 'WETH',
+                                // Auto-select first DEX for new chain
+                                exchange: chainConfig?.dexes[0] || 'uniswap',
+                                // Clear RPC URL to use default
+                                rpcUrl: null,
+                              });
+                            }}
                           >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="ethereum">Ethereum</SelectItem>
-                              <SelectItem value="pulsechain">PulseChain</SelectItem>
-                              <SelectItem value="base">Base</SelectItem>
-                              <SelectItem value="arbitrum">Arbitrum</SelectItem>
-                              <SelectItem value="optimism">Optimism</SelectItem>
-                              <SelectItem value="polygon">Polygon</SelectItem>
-                              <SelectItem value="bsc">BSC (BNB Chain)</SelectItem>
-                              <SelectItem value="avalanche">Avalanche</SelectItem>
-                              <SelectItem value="fantom">Fantom</SelectItem>
-                              <SelectItem value="linea">Linea</SelectItem>
-                              <SelectItem value="zksync">zkSync Era</SelectItem>
-                              <SelectItem value="scroll">Scroll</SelectItem>
-                              <SelectItem value="mantle">Mantle</SelectItem>
-                              <SelectItem value="celo">Celo</SelectItem>
-                              <SelectItem value="gnosis">Gnosis</SelectItem>
-                              <SelectItem value="moonbeam">Moonbeam</SelectItem>
-                              <SelectItem value="moonriver">Moonriver</SelectItem>
+                              {Object.entries(chainConfigs).map(([key, config]) => (
+                                <SelectItem key={key} value={key}>
+                                  {config.name}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="rpcUrl">RPC URL (Optional)</Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="rpcUrl">RPC URL (Optional)</Label>
+                          <Popover open={showRpcSuggestions} onOpenChange={setShowRpcSuggestions}>
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                                <Info className="h-3 w-3 mr-1" />
+                                Suggestions
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-2" align="end">
+                              <div className="space-y-2">
+                                <p className="text-xs font-medium">Recommended RPC URLs</p>
+                                <ScrollArea className="h-40">
+                                  <div className="space-y-1">
+                                    {currentRpcUrls.map((url, i) => (
+                                      <button
+                                        key={i}
+                                        className="w-full text-left p-2 rounded hover:bg-muted text-xs font-mono truncate"
+                                        onClick={() => {
+                                          updateBotConfig({ rpcUrl: url });
+                                          setShowRpcSuggestions(false);
+                                        }}
+                                      >
+                                        {url}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </ScrollArea>
+                                <p className="text-xs text-muted-foreground">
+                                  Default: {chainConfigs[botConfig.network as ChainName]?.rpcUrl || 'Auto'}
+                                </p>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                         <Input
                           id="rpcUrl"
-                          placeholder="https://..."
+                          placeholder={chainConfigs[botConfig.network as ChainName]?.rpcUrl || 'https://...'}
                           value={botConfig.rpcUrl || ''}
                           onChange={(e) => updateBotConfig({ rpcUrl: e.target.value })}
+                          className="font-mono text-sm"
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Leave empty to use default RPC for {chainConfigs[botConfig.network as ChainName]?.name || 'selected chain'}
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -893,7 +1172,7 @@ export function TradingDashboard() {
                       <div className="space-y-2">
                         <Label>Buy Trigger Types</Label>
                         <p className="text-xs text-muted-foreground mb-2">Select multiple triggers for enhanced bot activity</p>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {[
                             { value: 'price_drop', label: 'Price Drop', desc: 'Buy on significant price decrease' },
                             { value: 'volume_spike', label: 'Volume Spike', desc: 'Buy on unusual volume increase' },
@@ -920,26 +1199,29 @@ export function TradingDashboard() {
                             return (
                               <div
                                 key={trigger.value}
-                                className={`flex items-start space-x-2 p-2 rounded-lg border transition-colors cursor-pointer ${
+                                className={`flex items-start space-x-3 p-3 rounded-lg border transition-all duration-200 cursor-pointer min-h-[60px] sm:min-h-0 ${
                                   isSelected
-                                    ? 'bg-primary/10 border-primary'
-                                    : 'bg-muted/30 hover:bg-muted/50'
+                                    ? 'bg-primary/10 border-primary ring-1 ring-primary/20'
+                                    : 'bg-muted/30 hover:bg-muted/50 border-muted'
                                 }`}
                                 onClick={handleToggle}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleToggle();
+                                  }
+                                }}
                               >
                                 <Checkbox
-                                  id={`config-trigger-${trigger.value}`}
                                   checked={isSelected}
-                                  onCheckedChange={handleToggle}
-                                  className="mt-0.5"
+                                  className="mt-0.5 pointer-events-none"
                                 />
-                                <div className="grid gap-0.5 leading-none">
-                                  <label
-                                    htmlFor={`config-trigger-${trigger.value}`}
-                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                  >
+                                <div className="grid gap-0.5 leading-none flex-1">
+                                  <span className="text-sm font-medium leading-none cursor-pointer">
                                     {trigger.label}
-                                  </label>
+                                  </span>
                                   <span className="text-xs text-muted-foreground">{trigger.desc}</span>
                                 </div>
                               </div>
@@ -960,24 +1242,54 @@ export function TradingDashboard() {
                           );
                         })()}
                       </div>
-                      <div className="space-y-2">
-                        <Label>Trigger Sensitivity: {botConfig.buyTriggerValue}%</Label>
+                      
+                      {/* Trigger Sensitivity with Input and Slider */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label>Trigger Sensitivity</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              max="50"
+                              value={getInputDisplayValue('buyTriggerValue', botConfig.buyTriggerValue)}
+                              onChange={(e) => handleNumberInputChange('buyTriggerValue', e.target.value, 0.5, 50)}
+                              onBlur={() => handleNumberInputBlur('buyTriggerValue', 5, 0.5, 50)}
+                              className="w-20 h-8 text-center text-sm"
+                            />
+                            <span className="text-sm text-muted-foreground">%</span>
+                          </div>
+                        </div>
                         <Slider
                           value={[botConfig.buyTriggerValue]}
-                          onValueChange={([value]) => updateBotConfig({ buyTriggerValue: value })}
+                          onValueChange={([value]) => {
+                            // Clear local input when using slider
+                            setLocalInputValues(prev => {
+                              const next = { ...prev };
+                              delete next['buyTriggerValue'];
+                              return next;
+                            });
+                            updateBotConfig({ buyTriggerValue: value });
+                          }}
                           max={50}
                           step={0.5}
+                          className="w-full"
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Lower values = more sensitive (more trades). Higher values = less sensitive (fewer trades).
+                        </p>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Buy Amount (ETH)</Label>
+                          <Label>Buy Amount ({nativeTokenSymbol})</Label>
                           <Input
                             type="number"
                             step="0.001"
                             min="0"
-                            value={botConfig.buyAmount}
-                            onChange={(e) => updateBotConfig({ buyAmount: parseFloat(e.target.value) || 0 })}
+                            value={getInputDisplayValue('buyAmount', botConfig.buyAmount)}
+                            onChange={(e) => handleNumberInputChange('buyAmount', e.target.value, 0)}
+                            onBlur={() => handleNumberInputBlur('buyAmount', 0.1, 0)}
                           />
                         </div>
                         <div className="space-y-2">
@@ -987,8 +1299,9 @@ export function TradingDashboard() {
                             step="0.1"
                             min="0"
                             max="100"
-                            value={botConfig.buySlippage}
-                            onChange={(e) => updateBotConfig({ buySlippage: parseFloat(e.target.value) || 0 })}
+                            value={getInputDisplayValue('buySlippage', botConfig.buySlippage)}
+                            onChange={(e) => handleNumberInputChange('buySlippage', e.target.value, 0, 100)}
+                            onBlur={() => handleNumberInputBlur('buySlippage', 5, 0, 100)}
                           />
                         </div>
                       </div>
@@ -999,8 +1312,9 @@ export function TradingDashboard() {
                             type="number"
                             step="1"
                             min="0"
-                            value={botConfig.buyGasPrice}
-                            onChange={(e) => updateBotConfig({ buyGasPrice: parseFloat(e.target.value) || 0 })}
+                            value={getInputDisplayValue('buyGasPrice', botConfig.buyGasPrice)}
+                            onChange={(e) => handleNumberInputChange('buyGasPrice', e.target.value, 0)}
+                            onBlur={() => handleNumberInputBlur('buyGasPrice', 0, 0)}
                           />
                         </div>
                         <div className="space-y-2">
@@ -1008,8 +1322,9 @@ export function TradingDashboard() {
                           <Input
                             type="number"
                             min="21000"
-                            value={botConfig.buyGasLimit}
-                            onChange={(e) => updateBotConfig({ buyGasLimit: parseInt(e.target.value) || 21000 })}
+                            value={getInputDisplayValue('buyGasLimit', botConfig.buyGasLimit)}
+                            onChange={(e) => handleNumberInputChange('buyGasLimit', e.target.value, 21000)}
+                            onBlur={() => handleNumberInputBlur('buyGasLimit', 250000, 21000)}
                           />
                         </div>
                       </div>
@@ -1051,8 +1366,23 @@ export function TradingDashboard() {
                           step="0.1"
                           min="0"
                           max="100"
-                          value={botConfig.sellSlippage}
-                          onChange={(e) => updateBotConfig({ sellSlippage: parseFloat(e.target.value) || 0 })}
+                          value={botConfig.sellSlippage ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || val === '-' || val === '.') return;
+                            const num = parseFloat(val);
+                            if (!isNaN(num) && num >= 0 && num <= 100) {
+                              updateBotConfig({ sellSlippage: num });
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (isNaN(val) || val < 0) {
+                              updateBotConfig({ sellSlippage: 0 });
+                            } else if (val > 100) {
+                              updateBotConfig({ sellSlippage: 100 });
+                            }
+                          }}
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -1062,8 +1392,21 @@ export function TradingDashboard() {
                             type="number"
                             step="1"
                             min="0"
-                            value={botConfig.sellGasPrice}
-                            onChange={(e) => updateBotConfig({ sellGasPrice: parseFloat(e.target.value) || 0 })}
+                            value={botConfig.sellGasPrice ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '-') return;
+                              const num = parseFloat(val);
+                              if (!isNaN(num) && num >= 0) {
+                                updateBotConfig({ sellGasPrice: num });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (isNaN(val) || val < 0) {
+                                updateBotConfig({ sellGasPrice: 0 });
+                              }
+                            }}
                           />
                         </div>
                         <div className="space-y-2">
@@ -1071,8 +1414,21 @@ export function TradingDashboard() {
                           <Input
                             type="number"
                             min="21000"
-                            value={botConfig.sellGasLimit}
-                            onChange={(e) => updateBotConfig({ sellGasLimit: parseInt(e.target.value) || 21000 })}
+                            value={botConfig.sellGasLimit ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '-') return;
+                              const num = parseInt(val);
+                              if (!isNaN(num) && num >= 21000) {
+                                updateBotConfig({ sellGasLimit: num });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (isNaN(val) || val < 21000) {
+                                updateBotConfig({ sellGasLimit: 21000 });
+                              }
+                            }}
                           />
                         </div>
                       </div>
@@ -1082,8 +1438,21 @@ export function TradingDashboard() {
                           type="number"
                           step="0.1"
                           min="0"
-                          value={botConfig.sellTriggerValue}
-                          onChange={(e) => updateBotConfig({ sellTriggerValue: parseFloat(e.target.value) || 0 })}
+                          value={botConfig.sellTriggerValue ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || val === '-' || val === '.') return;
+                            const num = parseFloat(val);
+                            if (!isNaN(num) && num >= 0) {
+                              updateBotConfig({ sellTriggerValue: num });
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (isNaN(val) || val < 0) {
+                              updateBotConfig({ sellTriggerValue: 0 });
+                            }
+                          }}
                         />
                       </div>
                     </CardContent>
@@ -1117,8 +1486,21 @@ export function TradingDashboard() {
                                 type="number"
                                 step="1"
                                 min="0.1"
-                                value={botConfig.takeProfitPercent}
-                                onChange={(e) => updateBotConfig({ takeProfitPercent: parseFloat(e.target.value) || 0 })}
+                                value={botConfig.takeProfitPercent ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || val === '-' || val === '.') return;
+                                  const num = parseFloat(val);
+                                  if (!isNaN(num) && num >= 0) {
+                                    updateBotConfig({ takeProfitPercent: num });
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  if (isNaN(val) || val < 0.1) {
+                                    updateBotConfig({ takeProfitPercent: 0.1 });
+                                  }
+                                }}
                               />
                             </div>
                             <div className="space-y-2">
@@ -1128,8 +1510,23 @@ export function TradingDashboard() {
                                 step="1"
                                 min="1"
                                 max="100"
-                                value={botConfig.takeProfitAmount}
-                                onChange={(e) => updateBotConfig({ takeProfitAmount: parseFloat(e.target.value) || 100 })}
+                                value={botConfig.takeProfitAmount ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || val === '-' || val === '.') return;
+                                  const num = parseFloat(val);
+                                  if (!isNaN(num) && num >= 1 && num <= 100) {
+                                    updateBotConfig({ takeProfitAmount: num });
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  if (isNaN(val) || val < 1) {
+                                    updateBotConfig({ takeProfitAmount: 1 });
+                                  } else if (val > 100) {
+                                    updateBotConfig({ takeProfitAmount: 100 });
+                                  }
+                                }}
                               />
                             </div>
                           </div>
@@ -1162,8 +1559,23 @@ export function TradingDashboard() {
                                 step="0.5"
                                 min="0.1"
                                 max="100"
-                                value={botConfig.stopLossPercent}
-                                onChange={(e) => updateBotConfig({ stopLossPercent: parseFloat(e.target.value) || 0 })}
+                                value={botConfig.stopLossPercent ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || val === '-' || val === '.') return;
+                                  const num = parseFloat(val);
+                                  if (!isNaN(num) && num >= 0 && num <= 100) {
+                                    updateBotConfig({ stopLossPercent: num });
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  if (isNaN(val) || val < 0.1) {
+                                    updateBotConfig({ stopLossPercent: 0.1 });
+                                  } else if (val > 100) {
+                                    updateBotConfig({ stopLossPercent: 100 });
+                                  }
+                                }}
                               />
                             </div>
                             <div className="space-y-2">
@@ -1210,8 +1622,21 @@ export function TradingDashboard() {
                               type="number"
                               step="0.5"
                               min="0.1"
-                              value={botConfig.trailingStopPercent}
-                              onChange={(e) => updateBotConfig({ trailingStopPercent: parseFloat(e.target.value) || 0 })}
+                              value={botConfig.trailingStopPercent ?? ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || val === '-' || val === '.') return;
+                                const num = parseFloat(val);
+                                if (!isNaN(num) && num >= 0.1) {
+                                  updateBotConfig({ trailingStopPercent: num });
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const val = parseFloat(e.target.value);
+                                if (isNaN(val) || val < 0.1) {
+                                  updateBotConfig({ trailingStopPercent: 0.1 });
+                                }
+                              }}
                             />
                           </div>
                           <div className="space-y-2">
@@ -1220,8 +1645,21 @@ export function TradingDashboard() {
                               type="number"
                               step="1"
                               min="0"
-                              value={botConfig.trailingStopActivation}
-                              onChange={(e) => updateBotConfig({ trailingStopActivation: parseFloat(e.target.value) || 0 })}
+                              value={botConfig.trailingStopActivation ?? ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || val === '-') return;
+                                const num = parseFloat(val);
+                                if (!isNaN(num) && num >= 0) {
+                                  updateBotConfig({ trailingStopActivation: num });
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const val = parseFloat(e.target.value);
+                                if (isNaN(val) || val < 0) {
+                                  updateBotConfig({ trailingStopActivation: 0 });
+                                }
+                              }}
                             />
                           </div>
                         </div>
@@ -1257,23 +1695,49 @@ export function TradingDashboard() {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Max Position (ETH)</Label>
+                          <Label>Max Position ({nativeTokenSymbol})</Label>
                           <Input
                             type="number"
                             step="0.01"
                             min="0"
-                            value={botConfig.maxPositionSize}
-                            onChange={(e) => updateBotConfig({ maxPositionSize: parseFloat(e.target.value) || 0 })}
+                            value={botConfig.maxPositionSize ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '-' || val === '.') return;
+                              const num = parseFloat(val);
+                              if (!isNaN(num) && num >= 0) {
+                                updateBotConfig({ maxPositionSize: num });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (isNaN(val) || val < 0) {
+                                updateBotConfig({ maxPositionSize: 0 });
+                              }
+                            }}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Max Daily Loss (ETH)</Label>
+                          <Label>Max Daily Loss ({nativeTokenSymbol})</Label>
                           <Input
                             type="number"
                             step="0.01"
                             min="0"
-                            value={botConfig.maxDailyLoss}
-                            onChange={(e) => updateBotConfig({ maxDailyLoss: parseFloat(e.target.value) || 0 })}
+                            value={botConfig.maxDailyLoss ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '-' || val === '.') return;
+                              const num = parseFloat(val);
+                              if (!isNaN(num) && num >= 0) {
+                                updateBotConfig({ maxDailyLoss: num });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (isNaN(val) || val < 0) {
+                                updateBotConfig({ maxDailyLoss: 0 });
+                              }
+                            }}
                           />
                         </div>
                       </div>
@@ -1283,8 +1747,21 @@ export function TradingDashboard() {
                           <Input
                             type="number"
                             min="1"
-                            value={botConfig.maxDailyTrades}
-                            onChange={(e) => updateBotConfig({ maxDailyTrades: parseInt(e.target.value) || 1 })}
+                            value={botConfig.maxDailyTrades ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '-') return;
+                              const num = parseInt(val);
+                              if (!isNaN(num) && num >= 1) {
+                                updateBotConfig({ maxDailyTrades: num });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (isNaN(val) || val < 1) {
+                                updateBotConfig({ maxDailyTrades: 1 });
+                              }
+                            }}
                           />
                         </div>
                         <div className="space-y-2">
@@ -1292,8 +1769,21 @@ export function TradingDashboard() {
                           <Input
                             type="number"
                             min="1"
-                            value={botConfig.maxOpenPositions}
-                            onChange={(e) => updateBotConfig({ maxOpenPositions: parseInt(e.target.value) || 1 })}
+                            value={botConfig.maxOpenPositions ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '-') return;
+                              const num = parseInt(val);
+                              if (!isNaN(num) && num >= 1) {
+                                updateBotConfig({ maxOpenPositions: num });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (isNaN(val) || val < 1) {
+                                updateBotConfig({ maxOpenPositions: 1 });
+                              }
+                            }}
                           />
                         </div>
                       </div>
@@ -1303,18 +1793,44 @@ export function TradingDashboard() {
                           <Input
                             type="number"
                             min="0"
-                            value={botConfig.cooldownPeriod}
-                            onChange={(e) => updateBotConfig({ cooldownPeriod: parseInt(e.target.value) || 0 })}
+                            value={botConfig.cooldownPeriod ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '-') return;
+                              const num = parseInt(val);
+                              if (!isNaN(num) && num >= 0) {
+                                updateBotConfig({ cooldownPeriod: num });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (isNaN(val) || val < 0) {
+                                updateBotConfig({ cooldownPeriod: 0 });
+                              }
+                            }}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Min Position Size (ETH)</Label>
+                          <Label>Min Position Size ({nativeTokenSymbol})</Label>
                           <Input
                             type="number"
                             step="0.001"
                             min="0"
-                            value={botConfig.minPositionSize}
-                            onChange={(e) => updateBotConfig({ minPositionSize: parseFloat(e.target.value) || 0 })}
+                            value={botConfig.minPositionSize ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '-' || val === '.') return;
+                              const num = parseFloat(val);
+                              if (!isNaN(num) && num >= 0) {
+                                updateBotConfig({ minPositionSize: num });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (isNaN(val) || val < 0) {
+                                updateBotConfig({ minPositionSize: 0 });
+                              }
+                            }}
                           />
                         </div>
                       </div>

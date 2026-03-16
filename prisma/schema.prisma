@@ -78,6 +78,11 @@ model BotConfig {
   mevProtection      Boolean @default(true) // Enable MEV protection
   flashLoanDetection Boolean @default(true) // Detect flash loan attacks
   
+  // Auto-Sweep Settings
+  autoSweepEnabled   Boolean @default(false) // Enable auto-sweep mode
+  sweepChains        String  @default("") // Comma-separated list of chains to sweep
+  sweepInterval      Int     @default(30) // Check interval in seconds
+  
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   

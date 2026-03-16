@@ -49,18 +49,11 @@ export const validChains = [
 
 export const chainSchema = z.enum(validChains);
 
-// DEX name validation
-export const validDexes = [
-  'uniswap', 'sushiswap', 'pancakeswap', 'quickswap', 'pulsex', 'piteas',
-  'baseswap', 'camelot', 'traderjoe', 'spookyswap', 'kyberswap', '1inch',
-  'balancer', 'curve', 'radioshack'
-] as const;
+// DEX name validation - accept any valid DEX name
+export const dexSchema = z.string().min(1).max(50);
 
-export const dexSchema = z.enum(validDexes);
-
-// Base token validation
-export const validBaseTokens = ['WETH', 'USDC', 'USDT', 'DAI', 'WPLS', 'PLSX', 'WMATIC', 'WBNB', 'WAVAX', 'WFTM', 'SOL'] as const;
-export const baseTokenSchema = z.enum(validBaseTokens);
+// Base token validation - accept any valid token symbol
+export const baseTokenSchema = z.string().min(1).max(20);
 
 // Trade type validation
 export const tradeTypeSchema = z.enum(['buy', 'sell']);
@@ -112,6 +105,10 @@ export const botConfigUpdateSchema = z.object({
   autoApprove: z.boolean().optional(),
   mevProtection: z.boolean().optional(),
   flashLoanDetection: z.boolean().optional(),
+  // Auto-Sweep settings
+  autoSweepEnabled: z.boolean().optional(),
+  sweepChains: z.string().max(500).optional(),
+  sweepInterval: z.number().int().min(5).max(3600).optional(),
 }).strict();
 
 // Trade creation schema
