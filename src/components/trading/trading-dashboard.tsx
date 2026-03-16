@@ -27,6 +27,7 @@ function LiveTime() {
 }
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -422,7 +423,7 @@ export function TradingDashboard() {
             </CardHeader>
             <CardContent>
               <div className={`text-lg sm:text-2xl font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {totalPnL >= 0 ? '+' : ''}{totalPnL.toFixed(4)} ETH
+                {totalPnL >= 0 ? '+' : ''}${Math.abs(totalPnL).toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">
                 Unrealized
@@ -456,7 +457,7 @@ export function TradingDashboard() {
         {/* Main Tabs */}
         <Tabs defaultValue="dashboard" className="space-y-4">
           <ScrollArea className="w-full whitespace-nowrap">
-            <TabsList className="grid w-full grid-cols-9 min-w-[800px] sm:min-w-0 sm:w-auto">
+            <TabsList className="grid w-full grid-cols-7 min-w-[700px] sm:min-w-0 sm:w-auto">
               <TabsTrigger value="dashboard" className="min-h-[44px] px-2 sm:px-4">
                 <LineChart className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Dashboard</span>
@@ -469,17 +470,10 @@ export function TradingDashboard() {
                 <Settings className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Config</span>
               </TabsTrigger>
-              <TabsTrigger value="positions" className="min-h-[44px] px-2 sm:px-4">
-                <Target className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Positions</span>
-              </TabsTrigger>
-              <TabsTrigger value="history" className="min-h-[44px] px-2 sm:px-4">
-                <History className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">History</span>
-              </TabsTrigger>
-              <TabsTrigger value="logs" className="min-h-[44px] px-2 sm:px-4">
-                <Bell className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Activity</span>
+              <TabsTrigger value="trading-activity" className="min-h-[44px] px-2 sm:px-4">
+                <BarChart3 className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Trading Activity</span>
+                <span className="sm:hidden">Activity</span>
               </TabsTrigger>
               <TabsTrigger value="sniper" className="min-h-[44px] px-2 sm:px-4">
                 <Crosshair className="h-4 w-4 sm:mr-2" />
@@ -878,26 +872,79 @@ export function TradingDashboard() {
                       <CardDescription>Configure automatic buy triggers</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {/* Buy Trigger Types - Multi-select */}
                       <div className="space-y-2">
-                        <Label>Buy Trigger Type</Label>
-                        <Select
-                          value={botConfig.buyTriggerType}
-                          onValueChange={(value) => updateBotConfig({ buyTriggerType: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="price_drop">Price Drop</SelectItem>
-                            <SelectItem value="volume_spike">Volume Spike</SelectItem>
-                            <SelectItem value="liquidity_add">Liquidity Added</SelectItem>
-                            <SelectItem value="new_pair">New Pair</SelectItem>
-                            <SelectItem value="manual">Manual Only</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Label>Buy Trigger Types</Label>
+                        <p className="text-xs text-muted-foreground mb-2">Select multiple triggers for enhanced bot activity</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { value: 'price_drop', label: 'Price Drop', desc: 'Buy on significant price decrease' },
+                            { value: 'volume_spike', label: 'Volume Spike', desc: 'Buy on unusual volume increase' },
+                            { value: 'liquidity_add', label: 'Liquidity Added', desc: 'Buy when liquidity is added' },
+                            { value: 'new_pair', label: 'New Pair', desc: 'Buy on new trading pair detection' },
+                            { value: 'manual', label: 'Manual Only', desc: 'Only buy on manual trigger' },
+                          ].map((trigger) => {
+                            // Parse current trigger types from string (comma-separated)
+                            const currentTypes = botConfig.buyTriggerType?.split(',').filter(Boolean) || ['liquidity_add'];
+                            const isSelected = currentTypes.includes(trigger.value);
+                            
+                            const handleToggle = () => {
+                              let newTypes: string[];
+                              if (isSelected) {
+                                // Don't allow deselecting if it's the last one
+                                if (currentTypes.length === 1) return;
+                                newTypes = currentTypes.filter(t => t !== trigger.value);
+                              } else {
+                                newTypes = [...currentTypes, trigger.value];
+                              }
+                              updateBotConfig({ buyTriggerType: newTypes.join(',') });
+                            };
+                            
+                            return (
+                              <div
+                                key={trigger.value}
+                                className={`flex items-start space-x-2 p-2 rounded-lg border transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-primary/10 border-primary'
+                                    : 'bg-muted/30 hover:bg-muted/50'
+                                }`}
+                                onClick={handleToggle}
+                              >
+                                <Checkbox
+                                  id={`config-trigger-${trigger.value}`}
+                                  checked={isSelected}
+                                  onCheckedChange={handleToggle}
+                                  className="mt-0.5"
+                                />
+                                <div className="grid gap-0.5 leading-none">
+                                  <label
+                                    htmlFor={`config-trigger-${trigger.value}`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                  >
+                                    {trigger.label}
+                                  </label>
+                                  <span className="text-xs text-muted-foreground">{trigger.desc}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {(() => {
+                          const currentTypes = botConfig.buyTriggerType?.split(',').filter(Boolean) || ['liquidity_add'];
+                          return currentTypes.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              <span className="text-xs text-muted-foreground">Active:</span>
+                              {currentTypes.map((t: string) => (
+                                <Badge key={t} variant="secondary" className="text-xs">
+                                  {t.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                                </Badge>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="space-y-2">
-                        <Label>Trigger Value: {botConfig.buyTriggerValue}%</Label>
+                        <Label>Trigger Sensitivity: {botConfig.buyTriggerValue}%</Label>
                         <Slider
                           value={[botConfig.buyTriggerValue]}
                           onValueChange={([value]) => updateBotConfig({ buyTriggerValue: value })}
@@ -1285,11 +1332,21 @@ export function TradingDashboard() {
             )}
           </TabsContent>
 
-          {/* Positions Tab */}
-          <TabsContent value="positions" className="space-y-4">
+          {/* Trading Activity Tab - Merged Positions, History, and Activity */}
+          <TabsContent value="trading-activity" className="space-y-4">
+            {/* Page Title */}
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="h-6 w-6 text-primary" />
+              <h2 className="text-xl sm:text-2xl font-bold">Trading Activity</h2>
+            </div>
+
+            {/* Open Positions Section */}
             <Card>
               <CardHeader>
-                <CardTitle>Open Positions</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Open Positions
+                </CardTitle>
                 <CardDescription>
                   Manage your current trading positions
                 </CardDescription>
@@ -1391,17 +1448,18 @@ export function TradingDashboard() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* History Tab */}
-          <TabsContent value="history" className="space-y-4">
+            {/* Trade History Section */}
             <Card>
               <CardHeader>
-                <CardTitle>Trade History</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Trade History
+                </CardTitle>
                 <CardDescription>All executed trades</CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[400px] sm:h-[500px]">
+                <ScrollArea className="h-[300px] sm:h-[400px]">
                   <div className="overflow-x-auto">
                     <Table className="min-w-[700px] sm:min-w-0">
                       <TableHeader>
@@ -1485,17 +1543,18 @@ export function TradingDashboard() {
                 </ScrollArea>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Activity Tab */}
-          <TabsContent value="logs" className="space-y-4">
+            {/* Activity Log Section */}
             <Card>
               <CardHeader>
-                <CardTitle>Activity Log</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Activity Log
+                </CardTitle>
                 <CardDescription>All bot activities and events</CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[400px] sm:h-[600px]">
+                <ScrollArea className="h-[300px] sm:h-[400px]">
                   <div className="space-y-2">
                     {activityLogs.map((log) => (
                       <div

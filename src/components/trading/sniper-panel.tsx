@@ -71,8 +71,8 @@ export function SniperPanel() {
   const [selectedDex, setSelectedDex] = useState<string>('uniswap');
   const [selectedBaseToken, setSelectedBaseToken] = useState<string>('WETH');
   
-  // Buy settings
-  const [buyTriggerType, setBuyTriggerType] = useState('liquidity_add');
+  // Buy settings - multi-select trigger types
+  const [buyTriggerTypes, setBuyTriggerTypes] = useState<string[]>(['liquidity_add', 'new_pair']);
   const [buyTriggerValue, setBuyTriggerValue] = useState('5');
   const [buyAmount, setBuyAmount] = useState('0.1');
   const [buySlippage, setBuySlippage] = useState('5');
@@ -124,6 +124,19 @@ export function SniperPanel() {
   // Track previous config id to avoid unnecessary syncs
   const prevConfigIdRef = useRef<string | null>(null);
   
+  // Toggle trigger type selection (multi-select)
+  const handleTriggerTypeToggle = useCallback((type: string) => {
+    setBuyTriggerTypes(prev => {
+      if (prev.includes(type)) {
+        // Don't allow deselecting if it's the last one
+        if (prev.length === 1) return prev;
+        return prev.filter(t => t !== type);
+      }
+      return [...prev, type];
+    });
+    setUserModifiedSettings(true);
+  }, []);
+  
   // Manual sync from botConfig - only when user clicks "Sync from Config" or on initial load
   const handleSyncFromConfig = useCallback(() => {
     if (!botConfig) return;
@@ -132,7 +145,7 @@ export function SniperPanel() {
       if (botConfig.network) setSelectedChain(botConfig.network);
       if (botConfig.exchange) setSelectedDex(botConfig.exchange);
       if (botConfig.baseToken) setSelectedBaseToken(botConfig.baseToken);
-      if (botConfig.buyTriggerType) setBuyTriggerType(botConfig.buyTriggerType);
+      if (botConfig.buyTriggerType) setBuyTriggerTypes([botConfig.buyTriggerType]);
       if (botConfig.buyTriggerValue) setBuyTriggerValue(botConfig.buyTriggerValue.toString());
       if (botConfig.buyAmount) setBuyAmount(botConfig.buyAmount.toString());
       if (botConfig.buySlippage) setBuySlippage(botConfig.buySlippage.toString());
@@ -249,8 +262,8 @@ export function SniperPanel() {
       maxBuyPrice: maxBuyPrice || undefined,
       minLiquidity: minLiquidity || undefined,
       autoApprove,
-      // Buy settings
-      buyTriggerType,
+      // Buy settings - convert array to string for backend compatibility
+      buyTriggerType: buyTriggerTypes.join(','),
       buyTriggerValue,
       buySlippage,
       buyGasPrice,
@@ -275,7 +288,7 @@ export function SniperPanel() {
 
     // Reset token address only, keep all other settings
     setTokenAddress('');
-  }, [tokenAddress, verifiedToken, selectedChain, selectedDex, selectedBaseToken, buyAmount, maxBuyPrice, minLiquidity, autoApprove, buyTriggerType, buyTriggerValue, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, addTarget]);
+  }, [tokenAddress, verifiedToken, selectedChain, selectedDex, selectedBaseToken, buyAmount, maxBuyPrice, minLiquidity, autoApprove, buyTriggerTypes, buyTriggerValue, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, addTarget]);
 
   // Handle auto-sweep start - passes all current sniper settings
   const handleStartAutoSweep = useCallback(() => {
@@ -284,7 +297,7 @@ export function SniperPanel() {
     // Store all current settings to use for each chain
     const currentSettings = {
       buyAmount,
-      buyTriggerType,
+      buyTriggerType: buyTriggerTypes.join(','),
       buyTriggerValue,
       buySlippage,
       buyGasPrice,
@@ -327,7 +340,7 @@ export function SniperPanel() {
       chains: sweepChains,
       interval: parseInt(sweepInterval) || 30,
     });
-  }, [sweepChains, buyAmount, buyTriggerType, buyTriggerValue, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, minLiquidity, autoApprove, sweepInterval, addTarget, configureAutoSweep]);
+  }, [sweepChains, buyAmount, buyTriggerTypes, buyTriggerValue, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, minLiquidity, autoApprove, sweepInterval, addTarget, configureAutoSweep]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
@@ -750,31 +763,62 @@ export function SniperPanel() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {/* Buy Trigger Type */}
-            <div className="space-y-1">
-              <Label className="text-xs">Buy Trigger Type</Label>
-              <Select value={buyTriggerType} onValueChange={(value) => {
-                setBuyTriggerType(value);
-                setUserModifiedSettings(true);
-              }}>
-                <SelectTrigger className="min-h-[44px] sm:min-h-0 sm:h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="price_drop">Price Drop</SelectItem>
-                  <SelectItem value="volume_spike">Volume Spike</SelectItem>
-                  <SelectItem value="liquidity_add">Liquidity Added</SelectItem>
-                  <SelectItem value="new_pair">New Pair</SelectItem>
-                  <SelectItem value="manual">Manual Only</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Buy Trigger Types - Multi-select */}
+            <div className="space-y-2">
+              <Label className="text-xs">Buy Trigger Types</Label>
+              <p className="text-xs text-muted-foreground mb-2">Select multiple triggers for enhanced bot activity</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: 'price_drop', label: 'Price Drop', desc: 'Buy on significant price decrease' },
+                  { value: 'volume_spike', label: 'Volume Spike', desc: 'Buy on unusual volume increase' },
+                  { value: 'liquidity_add', label: 'Liquidity Added', desc: 'Buy when liquidity is added' },
+                  { value: 'new_pair', label: 'New Pair', desc: 'Buy on new trading pair detection' },
+                  { value: 'manual', label: 'Manual Only', desc: 'Only buy on manual trigger' },
+                ].map((trigger) => (
+                  <div
+                    key={trigger.value}
+                    className={`flex items-start space-x-2 p-2 rounded-lg border transition-colors cursor-pointer min-h-[60px] sm:min-h-0 ${
+                      buyTriggerTypes.includes(trigger.value)
+                        ? 'bg-primary/10 border-primary'
+                        : 'bg-muted/30 hover:bg-muted/50'
+                    }`}
+                    onClick={() => handleTriggerTypeToggle(trigger.value)}
+                  >
+                    <Checkbox
+                      id={`trigger-${trigger.value}`}
+                      checked={buyTriggerTypes.includes(trigger.value)}
+                      onCheckedChange={() => handleTriggerTypeToggle(trigger.value)}
+                      className="mt-0.5"
+                    />
+                    <div className="grid gap-0.5 leading-none">
+                      <label
+                        htmlFor={`trigger-${trigger.value}`}
+                        className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {trigger.label}
+                      </label>
+                      <span className="text-xs text-muted-foreground hidden sm:inline">{trigger.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {buyTriggerTypes.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  <span className="text-xs text-muted-foreground">Active:</span>
+                  {buyTriggerTypes.map((t) => (
+                    <Badge key={t} variant="secondary" className="text-xs">
+                      {t.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Trigger Value */}
-            {buyTriggerType !== 'manual' && (
+            {/* Trigger Value - show if not only manual */}
+            {!buyTriggerTypes.includes('manual') && buyTriggerTypes.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Trigger Value</Label>
+                  <Label className="text-xs">Trigger Sensitivity</Label>
                   <span className="text-xs text-muted-foreground">{buyTriggerValue}%</span>
                 </div>
                 <Slider
