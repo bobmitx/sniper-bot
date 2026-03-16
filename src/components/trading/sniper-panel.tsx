@@ -72,6 +72,8 @@ export function SniperPanel() {
   const [selectedBaseToken, setSelectedBaseToken] = useState<string>('WETH');
   
   // Buy settings
+  const [buyTriggerType, setBuyTriggerType] = useState('liquidity_add');
+  const [buyTriggerValue, setBuyTriggerValue] = useState('5');
   const [buyAmount, setBuyAmount] = useState('0.1');
   const [buySlippage, setBuySlippage] = useState('5');
   const [buyGasPrice, setBuyGasPrice] = useState('0');
@@ -130,6 +132,8 @@ export function SniperPanel() {
       if (botConfig.network) setSelectedChain(botConfig.network);
       if (botConfig.exchange) setSelectedDex(botConfig.exchange);
       if (botConfig.baseToken) setSelectedBaseToken(botConfig.baseToken);
+      if (botConfig.buyTriggerType) setBuyTriggerType(botConfig.buyTriggerType);
+      if (botConfig.buyTriggerValue) setBuyTriggerValue(botConfig.buyTriggerValue.toString());
       if (botConfig.buyAmount) setBuyAmount(botConfig.buyAmount.toString());
       if (botConfig.buySlippage) setBuySlippage(botConfig.buySlippage.toString());
       if (botConfig.buyGasPrice) setBuyGasPrice(botConfig.buyGasPrice.toString());
@@ -246,6 +250,8 @@ export function SniperPanel() {
       minLiquidity: minLiquidity || undefined,
       autoApprove,
       // Buy settings
+      buyTriggerType,
+      buyTriggerValue,
       buySlippage,
       buyGasPrice,
       buyGasLimit,
@@ -269,7 +275,7 @@ export function SniperPanel() {
 
     // Reset token address only, keep all other settings
     setTokenAddress('');
-  }, [tokenAddress, verifiedToken, selectedChain, selectedDex, selectedBaseToken, buyAmount, maxBuyPrice, minLiquidity, autoApprove, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, addTarget]);
+  }, [tokenAddress, verifiedToken, selectedChain, selectedDex, selectedBaseToken, buyAmount, maxBuyPrice, minLiquidity, autoApprove, buyTriggerType, buyTriggerValue, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, addTarget]);
 
   // Handle auto-sweep start - passes all current sniper settings
   const handleStartAutoSweep = useCallback(() => {
@@ -278,6 +284,8 @@ export function SniperPanel() {
     // Store all current settings to use for each chain
     const currentSettings = {
       buyAmount,
+      buyTriggerType,
+      buyTriggerValue,
       buySlippage,
       buyGasPrice,
       buyGasLimit,
@@ -319,7 +327,7 @@ export function SniperPanel() {
       chains: sweepChains,
       interval: parseInt(sweepInterval) || 30,
     });
-  }, [sweepChains, buyAmount, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, minLiquidity, autoApprove, sweepInterval, addTarget, configureAutoSweep]);
+  }, [sweepChains, buyAmount, buyTriggerType, buyTriggerValue, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, minLiquidity, autoApprove, sweepInterval, addTarget, configureAutoSweep]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
@@ -742,6 +750,46 @@ export function SniperPanel() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Buy Trigger Type */}
+            <div className="space-y-1">
+              <Label className="text-xs">Buy Trigger Type</Label>
+              <Select value={buyTriggerType} onValueChange={(value) => {
+                setBuyTriggerType(value);
+                setUserModifiedSettings(true);
+              }}>
+                <SelectTrigger className="min-h-[44px] sm:min-h-0 sm:h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="price_drop">Price Drop</SelectItem>
+                  <SelectItem value="volume_spike">Volume Spike</SelectItem>
+                  <SelectItem value="liquidity_add">Liquidity Added</SelectItem>
+                  <SelectItem value="new_pair">New Pair</SelectItem>
+                  <SelectItem value="manual">Manual Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Trigger Value */}
+            {buyTriggerType !== 'manual' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Trigger Value</Label>
+                  <span className="text-xs text-muted-foreground">{buyTriggerValue}%</span>
+                </div>
+                <Slider
+                  value={[parseFloat(buyTriggerValue) || 0]}
+                  onValueChange={([value]) => {
+                    setBuyTriggerValue(value.toString());
+                    setUserModifiedSettings(true);
+                  }}
+                  max={50}
+                  step={0.5}
+                  className="h-2"
+                />
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Slippage (%)</Label>

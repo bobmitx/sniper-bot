@@ -35,6 +35,9 @@ export interface SniperTarget {
   maxBuyPrice?: string;
   minLiquidity?: string;
   autoApprove: boolean;
+  // Buy trigger settings
+  buyTriggerType?: string;
+  buyTriggerValue?: string;
   // Buy settings
   buySlippage?: string;
   buyGasPrice?: string;
