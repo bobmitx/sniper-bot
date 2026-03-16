@@ -89,6 +89,7 @@ import {
 } from 'lucide-react';
 import { SniperPanel } from '@/components/trading/sniper-panel';
 import { DocumentationPanel } from '@/components/trading/documentation-panel';
+import { ThemeToggleCompact } from '@/components/theme-toggle';
 
 export function TradingDashboard() {
   const socketRef = useRef<SocketType | null>(null);
@@ -348,6 +349,7 @@ export function TradingDashboard() {
             )}
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggleCompact />
             <Button
               variant="outline"
               size="sm"
