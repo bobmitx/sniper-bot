@@ -1,11 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { validateInput, positionCreateSchema } from '@/lib/validation';
 
-// GET - Fetch open positions
+// Rate limiting store
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = 200;
+
+function checkRateLimit(clientId: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitStore.get(clientId);
+  
+  if (!entry || now > entry.resetTime) {
+    rateLimitStore.set(clientId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  
+  entry.count++;
+  return true;
+}
+
+// Valid position statuses
+const VALID_STATUSES = ['open', 'closing', 'closed'];
+
+// GET - Fetch positions
 export async function GET(request: NextRequest) {
+  const clientId = request.headers.get('x-forwarded-for') || 'unknown';
+  if (!checkRateLimit(clientId)) {
+    return NextResponse.json(
+      { success: false, error: 'Rate limit exceeded' },
+      { status: 429 }
+    );
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'open';
+    
+    // Validate status
+    if (!VALID_STATUSES.includes(status)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid status parameter' },
+        { status: 400 }
+      );
+    }
     
     const positions = await db.position.findMany({
       where: { status },
@@ -16,7 +58,7 @@ export async function GET(request: NextRequest) {
     const positionsWithPL = positions.map((position) => {
       const currentValue = position.currentValue || position.valueIn;
       const profitLoss = currentValue - position.valueIn;
-      const profitLossPercent = (profitLoss / position.valueIn) * 100;
+      const profitLossPercent = position.valueIn > 0 ? (profitLoss / position.valueIn) * 100 : 0;
       
       return {
         ...position,
@@ -41,8 +83,26 @@ export async function GET(request: NextRequest) {
 
 // POST - Open a new position
 export async function POST(request: NextRequest) {
+  const clientId = request.headers.get('x-forwarded-for') || 'unknown';
+  if (!checkRateLimit(clientId)) {
+    return NextResponse.json(
+      { success: false, error: 'Rate limit exceeded' },
+      { status: 429 }
+    );
+  }
+
   try {
     const body = await request.json();
+    
+    // Validate input
+    const validation = validateInput(positionCreateSchema, body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, error: `Validation error: ${validation.error}` },
+        { status: 400 }
+      );
+    }
+    
     const botConfig = await db.botConfig.findFirst();
     
     if (!botConfig) {
@@ -64,22 +124,24 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Create position
+    const data = validation.data;
+    
+    // Create position with validated data
     const position = await db.position.create({
       data: {
         botConfigId: botConfig.id,
-        tokenAddress: body.tokenAddress || botConfig.targetToken || '0x...',
-        tokenSymbol: body.tokenSymbol || botConfig.targetTokenSymbol || 'UNKNOWN',
-        tokenName: body.tokenName || botConfig.targetTokenName || 'Unknown Token',
-        entryPrice: body.entryPrice || 0,
-        entryPriceUsd: body.entryPriceUsd || 0,
-        amount: body.amount || 0,
-        valueIn: body.valueIn || botConfig.buyAmount,
-        currentValue: body.valueIn || botConfig.buyAmount,
-        highestPrice: body.entryPrice || 0,
-        lowestPrice: body.entryPrice || 0,
-        stopLossPrice: body.stopLossPrice || null,
-        takeProfitPrice: body.takeProfitPrice || null,
+        tokenAddress: data.tokenAddress,
+        tokenSymbol: data.tokenSymbol || botConfig.targetTokenSymbol || 'UNKNOWN',
+        tokenName: data.tokenName || botConfig.targetTokenName || 'Unknown Token',
+        entryPrice: data.entryPrice,
+        entryPriceUsd: data.entryPriceUsd || null,
+        amount: data.amount,
+        valueIn: data.valueIn,
+        currentValue: data.valueIn,
+        highestPrice: data.entryPrice,
+        lowestPrice: data.entryPrice,
+        stopLossPrice: data.stopLossPrice || null,
+        takeProfitPrice: data.takeProfitPrice || null,
         status: 'open',
       },
     });
@@ -110,19 +172,28 @@ export async function POST(request: NextRequest) {
 
 // PUT - Update position
 export async function PUT(request: NextRequest) {
+  const clientId = request.headers.get('x-forwarded-for') || 'unknown';
+  if (!checkRateLimit(clientId)) {
+    return NextResponse.json(
+      { success: false, error: 'Rate limit exceeded' },
+      { status: 429 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { id, action, ...updateData } = body;
     
-    if (!id) {
+    // Validate position ID
+    if (!id || typeof id !== 'string' || id.length > 50) {
       return NextResponse.json(
-        { success: false, error: 'Position ID is required' },
+        { success: false, error: 'Valid position ID is required' },
         { status: 400 }
       );
     }
     
+    // Handle close action
     if (action === 'close') {
-      // Close the position
       const position = await db.position.update({
         where: { id },
         data: {
@@ -148,11 +219,34 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: true, data: position });
     }
     
-    // Regular update
+    // Regular update - whitelist allowed fields
+    const allowedFields = [
+      'currentValue', 'highestPrice', 'lowestPrice',
+      'stopLossPrice', 'takeProfitPrice', 'trailingStopPrice', 'status'
+    ];
+    const cleanData: Record<string, unknown> = {};
+    
+    for (const [key, value] of Object.entries(updateData)) {
+      if (allowedFields.includes(key) && value !== undefined && value !== null) {
+        if (typeof value === 'number' && isNaN(value)) {
+          continue;
+        }
+        cleanData[key] = value;
+      }
+    }
+    
+    // Validate status if provided
+    if (cleanData.status && !VALID_STATUSES.includes(cleanData.status as string)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid status value' },
+        { status: 400 }
+      );
+    }
+    
     const position = await db.position.update({
       where: { id },
       data: {
-        ...updateData,
+        ...cleanData,
         updatedAt: new Date(),
       },
     });
@@ -169,13 +263,42 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Delete closed position
 export async function DELETE(request: NextRequest) {
+  const clientId = request.headers.get('x-forwarded-for') || 'unknown';
+  if (!checkRateLimit(clientId)) {
+    return NextResponse.json(
+      { success: false, error: 'Rate limit exceeded' },
+      { status: 429 }
+    );
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     
-    if (!id) {
+    // Validate ID
+    if (!id || typeof id !== 'string' || id.length > 50) {
       return NextResponse.json(
-        { success: false, error: 'Position ID is required' },
+        { success: false, error: 'Valid position ID is required' },
+        { status: 400 }
+      );
+    }
+    
+    // Check if position exists and is closed
+    const position = await db.position.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+    
+    if (!position) {
+      return NextResponse.json(
+        { success: false, error: 'Position not found' },
+        { status: 404 }
+      );
+    }
+    
+    if (position.status === 'open') {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete open position' },
         { status: 400 }
       );
     }

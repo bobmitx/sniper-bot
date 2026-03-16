@@ -481,14 +481,79 @@ interface AutoSweepConfig {
 // SERVICE STATE
 // ============================================================================
 
+// Authentication configuration
+const AUTH_ENABLED = process.env.ENABLE_WS_AUTH === 'true';
+const API_KEYS = new Set((process.env.API_KEYS || '').split(',').filter(Boolean));
+const AUTH_TOKENS = new Set((process.env.WS_TOKENS || '').split(',').filter(Boolean));
+
+// Rate limiting for WebSocket connections
+const connectionRateLimit = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_CONNECTIONS = 10;
+
+function checkConnectionRateLimit(clientId: string): boolean {
+  const now = Date.now();
+  const entry = connectionRateLimit.get(clientId);
+  
+  if (!entry || now > entry.resetTime) {
+    connectionRateLimit.set(clientId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  if (entry.count >= RATE_LIMIT_MAX_CONNECTIONS) {
+    return false;
+  }
+  
+  entry.count++;
+  return true;
+}
+
+function validateAuthToken(token: string | undefined): boolean {
+  if (!AUTH_ENABLED) return true;
+  if (!token) return false;
+  return AUTH_TOKENS.has(token) || API_KEYS.has(token);
+}
+
 const io = new Server(PORT, {
   cors: {
-    origin: '*',
+    origin: process.env.CORS_ORIGINS?.split(',') || '*',
     methods: ['GET', 'POST'],
+    credentials: true,
+  },
+  // Connection authentication middleware
+  allowRequest: (req, callback) => {
+    const clientId = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
+                     req.headers['x-real-ip']?.toString() ||
+                     req.socket.remoteAddress ||
+                     'unknown';
+    
+    // Rate limit connections
+    if (!checkConnectionRateLimit(clientId)) {
+      console.warn(`⚠️ Rate limit exceeded for ${clientId}`);
+      return callback(new Error('Rate limit exceeded'), false);
+    }
+    
+    // Check auth token if enabled
+    if (AUTH_ENABLED) {
+      const authHeader = req.headers['authorization'];
+      const token = authHeader?.replace('Bearer ', '') || 
+                    req.headers['x-auth-token']?.toString() ||
+                    new URL(req.url || '', 'http://localhost').searchParams.get('token');
+      
+      if (!validateAuthToken(token)) {
+        console.warn(`⚠️ Unauthorized connection attempt from ${clientId}`);
+        return callback(new Error('Unauthorized'), false);
+      }
+    }
+    
+    return callback(null, true);
   },
 });
 
 console.log(`🎯 Sniper Service running on port ${PORT}`);
+if (AUTH_ENABLED) {
+  console.log('🔒 WebSocket authentication enabled');
+}
 
 const sniperTargets = new Map<string, SniperTarget>();
 const blockchainClients = new Map<ChainName, ReturnType<typeof createPublicClient>>();

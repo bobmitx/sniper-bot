@@ -131,6 +131,12 @@ model Trade {
   updatedAt       DateTime @updatedAt
   
   errorMessage    String?
+  
+  // Indexes for common queries
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@index([botConfigId])
+  @@index([type])
 }
 
 // Active Positions
@@ -167,6 +173,11 @@ model Position {
   updatedAt       DateTime @updatedAt
   
   trades          Trade[]
+  
+  // Indexes for common queries
+  @@index([status])
+  @@index([openedAt(sort: Desc)])
+  @@index([botConfigId])
 }
 
 // Price Alerts
@@ -190,6 +201,10 @@ model PriceAlert {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  // Indexes
+  @@index([triggered])
+  @@index([botConfigId])
 }
 
 // Market Data Cache
@@ -208,6 +223,9 @@ model MarketData {
   liquidity       Float?
   
   lastUpdated     DateTime @default(now())
+  
+  // Index for price lookups
+  @@index([symbol])
 }
 
 // Bot Activity Log
@@ -219,4 +237,9 @@ model ActivityLog {
   details         String?  // JSON string for additional details
   
   createdAt       DateTime @default(now())
+  
+  // Indexes for common queries
+  @@index([createdAt(sort: Desc)])
+  @@index([level])
+  @@index([category])
 }

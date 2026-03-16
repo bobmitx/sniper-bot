@@ -1,8 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { validateInput, botConfigUpdateSchema } from '@/lib/validation';
+
+// Allowed fields for bot configuration update (whitelist)
+const ALLOWED_CONFIG_FIELDS = new Set([
+  'name', 'isActive', 'exchange', 'network', 'rpcUrl',
+  'targetToken', 'targetTokenSymbol', 'targetTokenName', 'baseToken',
+  'strategy', 'strategyParams', 'buyTriggerType', 'buyTriggerValue',
+  'buyAmount', 'buySlippage', 'buyGasPrice', 'buyGasLimit',
+  'sellTriggerType', 'sellTriggerValue', 'sellSlippage', 'sellGasPrice', 'sellGasLimit',
+  'takeProfitEnabled', 'takeProfitPercent', 'takeProfitAmount',
+  'stopLossEnabled', 'stopLossPercent', 'stopLossType',
+  'trailingStopEnabled', 'trailingStopPercent', 'trailingStopActivation',
+  'positionSizingType', 'positionSizeValue', 'maxPositionSize', 'minPositionSize',
+  'maxDailyLoss', 'maxDailyTrades', 'maxOpenPositions', 'cooldownPeriod',
+  'autoApprove', 'mevProtection', 'flashLoanDetection',
+]);
+
+// Rate limiting store (in-memory, resets on server restart)
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 100; // 100 requests per minute
+
+function checkRateLimit(clientId: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitStore.get(clientId);
+  
+  if (!entry || now > entry.resetTime) {
+    rateLimitStore.set(clientId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  
+  entry.count++;
+  return true;
+}
 
 // GET - Fetch bot configuration
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Rate limiting
+  const clientId = request.headers.get('x-forwarded-for') || 'unknown';
+  if (!checkRateLimit(clientId)) {
+    return NextResponse.json(
+      { success: false, error: 'Rate limit exceeded' },
+      { status: 429 }
+    );
+  }
+
   try {
     let config = await db.botConfig.findFirst();
     
@@ -55,8 +102,27 @@ export async function GET() {
 
 // PUT - Update bot configuration
 export async function PUT(request: NextRequest) {
+  // Rate limiting
+  const clientId = request.headers.get('x-forwarded-for') || 'unknown';
+  if (!checkRateLimit(clientId)) {
+    return NextResponse.json(
+      { success: false, error: 'Rate limit exceeded' },
+      { status: 429 }
+    );
+  }
+
   try {
     const body = await request.json();
+    
+    // Validate input
+    const validation = validateInput(botConfigUpdateSchema, body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, error: `Validation error: ${validation.error}` },
+        { status: 400 }
+      );
+    }
+    
     const existingConfig = await db.botConfig.findFirst();
     
     if (!existingConfig) {
@@ -66,10 +132,10 @@ export async function PUT(request: NextRequest) {
       );
     }
     
-    // Filter out undefined, null, and NaN values
+    // Filter to only allowed fields (additional security layer)
     const cleanBody: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(body)) {
-      if (value !== undefined && value !== null) {
+    for (const [key, value] of Object.entries(validation.data)) {
+      if (ALLOWED_CONFIG_FIELDS.has(key) && value !== undefined && value !== null) {
         if (typeof value === 'number' && isNaN(value)) {
           continue; // Skip NaN values
         }
@@ -97,9 +163,26 @@ export async function PUT(request: NextRequest) {
 
 // POST - Toggle bot active state
 export async function POST(request: NextRequest) {
+  // Rate limiting
+  const clientId = request.headers.get('x-forwarded-for') || 'unknown';
+  if (!checkRateLimit(clientId)) {
+    return NextResponse.json(
+      { success: false, error: 'Rate limit exceeded' },
+      { status: 429 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { action } = body;
+    
+    // Validate action
+    if (action !== 'start' && action !== 'stop') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid action. Use "start" or "stop"' },
+        { status: 400 }
+      );
+    }
     
     const existingConfig = await db.botConfig.findFirst();
     
@@ -110,44 +193,23 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    let updatedConfig;
+    // Log the action
+    await db.activityLog.create({
+      data: {
+        level: 'info',
+        category: 'system',
+        message: `Bot ${action}ed`,
+        details: JSON.stringify({ 
+          timestamp: new Date().toISOString(),
+          previousState: existingConfig.isActive,
+        }),
+      },
+    });
     
-    if (action === 'start') {
-      // Log bot start
-      await db.activityLog.create({
-        data: {
-          level: 'info',
-          category: 'system',
-          message: 'Bot started',
-          details: JSON.stringify({ timestamp: new Date().toISOString() }),
-        },
-      });
-      
-      updatedConfig = await db.botConfig.update({
-        where: { id: existingConfig.id },
-        data: { isActive: true },
-      });
-    } else if (action === 'stop') {
-      // Log bot stop
-      await db.activityLog.create({
-        data: {
-          level: 'info',
-          category: 'system',
-          message: 'Bot stopped',
-          details: JSON.stringify({ timestamp: new Date().toISOString() }),
-        },
-      });
-      
-      updatedConfig = await db.botConfig.update({
-        where: { id: existingConfig.id },
-        data: { isActive: false },
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, error: 'Invalid action. Use "start" or "stop"' },
-        { status: 400 }
-      );
-    }
+    const updatedConfig = await db.botConfig.update({
+      where: { id: existingConfig.id },
+      data: { isActive: action === 'start' },
+    });
     
     return NextResponse.json({ success: true, data: updatedConfig });
   } catch (error) {
