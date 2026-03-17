@@ -105,6 +105,16 @@ export function SniperPanel() {
   const [autoApprove, setAutoApprove] = useState(true);
   const [mevProtection, setMevProtection] = useState(true);
   
+  // Risk Management settings
+  const [positionSizingType, setPositionSizingType] = useState('fixed');
+  const [maxPositionSize, setMaxPositionSize] = useState('1.0');
+  const [minPositionSize, setMinPositionSize] = useState('0.01');
+  const [maxDailyLoss, setMaxDailyLoss] = useState('0.5');
+  const [maxDailyTrades, setMaxDailyTrades] = useState('10');
+  const [maxOpenPositions, setMaxOpenPositions] = useState('5');
+  const [cooldownPeriod, setCooldownPeriod] = useState('300');
+  const [flashLoanDetection, setFlashLoanDetection] = useState(true);
+  
   // Auto-sweep mode
   const [autoSweepEnabled, setAutoSweepEnabled] = useState(false);
   const [sweepChains, setSweepChains] = useState<string[]>([]);
@@ -127,7 +137,7 @@ export function SniperPanel() {
   // Debounced save timer for auto-persisting settings
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Save settings to database with debounce
   const saveSettingsToDatabase = useCallback(async () => {
     if (!botConfig?.id) return;
@@ -163,6 +173,15 @@ export function SniperPanel() {
           trailingStopActivation: parseFloat(trailingStopActivation) || 10,
           autoApprove,
           mevProtection,
+          // Risk Management settings
+          positionSizingType,
+          maxPositionSize: parseFloat(maxPositionSize) || 1.0,
+          minPositionSize: parseFloat(minPositionSize) || 0.01,
+          maxDailyLoss: parseFloat(maxDailyLoss) || 0.5,
+          maxDailyTrades: parseInt(maxDailyTrades) || 10,
+          maxOpenPositions: parseInt(maxOpenPositions) || 5,
+          cooldownPeriod: parseInt(cooldownPeriod) || 300,
+          flashLoanDetection,
           // Auto-Sweep settings
           autoSweepEnabled,
           sweepChains: sweepChains.join(','),
@@ -178,7 +197,7 @@ export function SniperPanel() {
     } finally {
       setIsSaving(false);
     }
-  }, [botConfig?.id, selectedChain, selectedDex, selectedBaseToken, buyTriggerTypes, buyTriggerValue, buyAmount, buySlippage, buyGasPrice, buyGasLimit, minLiquidity, maxBuyPrice, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, autoApprove, mevProtection, autoSweepEnabled, sweepChains, sweepInterval]);
+  }, [botConfig?.id, selectedChain, selectedDex, selectedBaseToken, buyTriggerTypes, buyTriggerValue, buyAmount, buySlippage, buyGasPrice, buyGasLimit, minLiquidity, maxBuyPrice, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, autoApprove, mevProtection, positionSizingType, maxPositionSize, minPositionSize, maxDailyLoss, maxDailyTrades, maxOpenPositions, cooldownPeriod, flashLoanDetection, autoSweepEnabled, sweepChains, sweepInterval]);
   
   // Debounced save - saves 2 seconds after last change
   const debouncedSave = useCallback(() => {
@@ -195,7 +214,37 @@ export function SniperPanel() {
     setUserModifiedSettings(true);
     debouncedSave();
   }, [debouncedSave]);
-  
+
+  // Helper function to validate and set default for numeric inputs on blur
+  const handleNumericBlur = useCallback((
+    value: string,
+    setter: (val: string) => void,
+    defaultValue: string,
+    min?: number,
+    max?: number
+  ) => {
+    if (value === '' || value === '-') {
+      // If empty or just a minus sign, set to default
+      setter(defaultValue);
+      markModifiedAndSave();
+      return;
+    }
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+      setter(defaultValue);
+      markModifiedAndSave();
+      return;
+    }
+    // Apply min/max constraints
+    let finalValue = num;
+    if (min !== undefined && finalValue < min) finalValue = min;
+    if (max !== undefined && finalValue > max) finalValue = max;
+    setter(finalValue.toString());
+    if (finalValue !== num) {
+      markModifiedAndSave();
+    }
+  }, [markModifiedAndSave]);
+
   // Toggle trigger type selection (multi-select)
   const handleTriggerTypeToggle = useCallback((type: string) => {
     setBuyTriggerTypes(prev => {
@@ -243,6 +292,15 @@ export function SniperPanel() {
       if (botConfig.trailingStopActivation) setTrailingStopActivation(botConfig.trailingStopActivation.toString());
       if (botConfig.autoApprove !== undefined) setAutoApprove(botConfig.autoApprove);
       if (botConfig.mevProtection !== undefined) setMevProtection(botConfig.mevProtection);
+      // Risk Management settings
+      if (botConfig.positionSizingType) setPositionSizingType(botConfig.positionSizingType);
+      if (botConfig.maxPositionSize) setMaxPositionSize(botConfig.maxPositionSize.toString());
+      if (botConfig.minPositionSize) setMinPositionSize(botConfig.minPositionSize.toString());
+      if (botConfig.maxDailyLoss) setMaxDailyLoss(botConfig.maxDailyLoss.toString());
+      if (botConfig.maxDailyTrades) setMaxDailyTrades(botConfig.maxDailyTrades.toString());
+      if (botConfig.maxOpenPositions) setMaxOpenPositions(botConfig.maxOpenPositions.toString());
+      if (botConfig.cooldownPeriod) setCooldownPeriod(botConfig.cooldownPeriod.toString());
+      if (botConfig.flashLoanDetection !== undefined) setFlashLoanDetection(botConfig.flashLoanDetection);
       if (botConfig.targetToken) setTokenAddress(botConfig.targetToken);
       // Auto-Sweep settings
       if (botConfig.autoSweepEnabled !== undefined) setAutoSweepEnabled(botConfig.autoSweepEnabled);
@@ -759,7 +817,9 @@ export function SniperPanel() {
               value={buyAmount}
               onChange={(e) => {
                 setBuyAmount(e.target.value);
-                markModifiedAndSave();
+              }}
+              onBlur={() => {
+                handleNumericBlur(buyAmount, setBuyAmount, '0.1', 0.001);
               }}
               className="min-h-[44px] sm:min-h-0"
             />
@@ -775,7 +835,9 @@ export function SniperPanel() {
               value={minLiquidity}
               onChange={(e) => {
                 setMinLiquidity(e.target.value);
-                markModifiedAndSave();
+              }}
+              onBlur={() => {
+                handleNumericBlur(minLiquidity, setMinLiquidity, '100', 0);
               }}
               className="min-h-[44px] sm:min-h-0"
             />
@@ -917,15 +979,9 @@ export function SniperPanel() {
                       value={buyTriggerValue}
                       onChange={(e) => {
                         setBuyTriggerValue(e.target.value);
-                        markModifiedAndSave();
                       }}
                       onBlur={() => {
-                        const num = parseFloat(buyTriggerValue);
-                        if (isNaN(num) || num < 0.5) {
-                          setBuyTriggerValue('0.5');
-                        } else if (num > 50) {
-                          setBuyTriggerValue('50');
-                        }
+                        handleNumericBlur(buyTriggerValue, setBuyTriggerValue, '5', 0.5, 50);
                       }}
                       className="w-16 h-8 text-center text-xs"
                     />
@@ -957,7 +1013,9 @@ export function SniperPanel() {
                   value={buySlippage}
                   onChange={(e) => {
                     setBuySlippage(e.target.value);
-                    markModifiedAndSave();
+                  }}
+                  onBlur={() => {
+                    handleNumericBlur(buySlippage, setBuySlippage, '5', 0, 100);
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -969,7 +1027,9 @@ export function SniperPanel() {
                   value={buyGasPrice}
                   onChange={(e) => {
                     setBuyGasPrice(e.target.value);
-                    markModifiedAndSave();
+                  }}
+                  onBlur={() => {
+                    handleNumericBlur(buyGasPrice, setBuyGasPrice, '0', 0);
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -982,7 +1042,9 @@ export function SniperPanel() {
                 value={buyGasLimit}
                 onChange={(e) => {
                   setBuyGasLimit(e.target.value);
-                  markModifiedAndSave();
+                }}
+                onBlur={() => {
+                  handleNumericBlur(buyGasLimit, setBuyGasLimit, '250000', 21000);
                 }}
                 className="min-h-[44px] sm:min-h-0 sm:h-8"
               />
@@ -1009,7 +1071,9 @@ export function SniperPanel() {
                   value={sellSlippage}
                   onChange={(e) => {
                     setSellSlippage(e.target.value);
-                    markModifiedAndSave();
+                  }}
+                  onBlur={() => {
+                    handleNumericBlur(sellSlippage, setSellSlippage, '5', 0, 100);
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -1021,7 +1085,9 @@ export function SniperPanel() {
                   value={sellGasPrice}
                   onChange={(e) => {
                     setSellGasPrice(e.target.value);
-                    markModifiedAndSave();
+                  }}
+                  onBlur={() => {
+                    handleNumericBlur(sellGasPrice, setSellGasPrice, '0', 0);
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -1056,7 +1122,9 @@ export function SniperPanel() {
                         value={takeProfitPercent}
                         onChange={(e) => {
                           setTakeProfitPercent(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(takeProfitPercent, setTakeProfitPercent, '50', 0);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1070,7 +1138,9 @@ export function SniperPanel() {
                         value={takeProfitAmount}
                         onChange={(e) => {
                           setTakeProfitAmount(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(takeProfitAmount, setTakeProfitAmount, '100', 0, 100);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="100"
@@ -1125,7 +1195,9 @@ export function SniperPanel() {
                         value={stopLossPercent}
                         onChange={(e) => {
                           setStopLossPercent(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(stopLossPercent, setStopLossPercent, '10', 0);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1196,7 +1268,9 @@ export function SniperPanel() {
                         value={trailingStopPercent}
                         onChange={(e) => {
                           setTrailingStopPercent(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(trailingStopPercent, setTrailingStopPercent, '5', 0);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1210,7 +1284,9 @@ export function SniperPanel() {
                         value={trailingStopActivation}
                         onChange={(e) => {
                           setTrailingStopActivation(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(trailingStopActivation, setTrailingStopActivation, '10', 0);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1248,12 +1324,112 @@ export function SniperPanel() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Position Sizing */}
+            <div className="space-y-2">
+              <Label className="text-xs">Position Sizing</Label>
+              <Select value={positionSizingType} onValueChange={(value) => { setPositionSizingType(value); markModifiedAndSave(); }}>
+                <SelectTrigger className="min-h-[44px] sm:min-h-0 sm:h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed">Fixed Amount</SelectItem>
+                  <SelectItem value="percentage">Portfolio %</SelectItem>
+                  <SelectItem value="kelly">Kelly Criterion</SelectItem>
+                  <SelectItem value="risk_parity">Risk Parity</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Max Position</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={maxPositionSize}
+                  onChange={(e) => { setMaxPositionSize(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(maxPositionSize, setMaxPositionSize, '1.0', 0.001); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Min Position</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={minPositionSize}
+                  onChange={(e) => { setMinPositionSize(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(minPositionSize, setMinPositionSize, '0.01', 0); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Max Daily Loss</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={maxDailyLoss}
+                  onChange={(e) => { setMaxDailyLoss(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(maxDailyLoss, setMaxDailyLoss, '0.5', 0); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Max Daily Trades</Label>
+                <Input
+                  type="number"
+                  value={maxDailyTrades}
+                  onChange={(e) => { setMaxDailyTrades(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(maxDailyTrades, setMaxDailyTrades, '10', 1, 1000); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Max Positions</Label>
+                <Input
+                  type="number"
+                  value={maxOpenPositions}
+                  onChange={(e) => { setMaxOpenPositions(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(maxOpenPositions, setMaxOpenPositions, '5', 1, 100); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Cooldown (sec)</Label>
+                <Input
+                  type="number"
+                  value={cooldownPeriod}
+                  onChange={(e) => { setCooldownPeriod(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(cooldownPeriod, setCooldownPeriod, '300', 0); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+            </div>
+            
+            <Separator />
+            
             <div className="flex items-center justify-between py-1">
               <Label className="text-xs sm:text-sm">MEV Protection</Label>
               <Switch 
                 checked={mevProtection} 
                 onCheckedChange={(checked) => {
                   setMevProtection(checked);
+                  markModifiedAndSave();
+                }} 
+              />
+            </div>
+            <div className="flex items-center justify-between py-1">
+              <Label className="text-xs sm:text-sm">Flash Loan Detection</Label>
+              <Switch 
+                checked={flashLoanDetection} 
+                onCheckedChange={(checked) => {
+                  setFlashLoanDetection(checked);
                   markModifiedAndSave();
                 }} 
               />
@@ -1324,7 +1500,9 @@ export function SniperPanel() {
                     value={sweepInterval}
                     onChange={(e) => {
                       setSweepInterval(e.target.value);
-                      markModifiedAndSave();
+                    }}
+                    onBlur={() => {
+                      handleNumericBlur(sweepInterval, setSweepInterval, '30', 5, 3600);
                     }}
                     className="min-h-[44px] sm:min-h-0 sm:h-8"
                   />
