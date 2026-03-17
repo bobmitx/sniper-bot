@@ -18,6 +18,7 @@ import {
   safeWallet,
   walletConnectWallet,
   ledgerWallet,
+  coinbaseWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import '@rainbow-me/rainbowkit/styles.css';
 import { useState, useEffect } from 'react';
@@ -41,7 +42,7 @@ import {
   zkSync,
 } from 'wagmi/chains';
 
-const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'demo-project-id';
+const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'fe9c5a65ad417ee342286b69e7817757';
 
 // Custom PulseChain configuration
 const pulsechain = {
@@ -125,20 +126,21 @@ const chains = [
   pulsechain,
 ] as const;
 
-// Configure wallets - prioritize browser extension wallets that work reliably
+// Configure wallets - prioritize browser extension wallets that work reliably in all environments
 // WalletConnect may have issues in sandboxed environments due to popup/relay requirements
 const connectors = connectorsForWallets(
   [
     {
-      groupName: 'Recommended (Browser Extension)',
+      groupName: 'Recommended',
       wallets: [
         metaMaskWallet,
+        coinbaseWallet,
         rabbyWallet,
         braveWallet,
       ],
     },
     {
-      groupName: 'Other Extensions',
+      groupName: 'Browser Extensions',
       wallets: [
         trustWallet,
         okxWallet,
@@ -146,10 +148,29 @@ const connectors = connectorsForWallets(
       ],
     },
     {
-      groupName: 'Mobile & Hardware',
+      groupName: 'Mobile Wallets',
       wallets: [
+        // Configure WalletConnect with custom options for better reliability
+        (walletOptions) => walletConnectWallet({
+          ...walletOptions,
+          options: {
+            projectId,
+            metadata: {
+              name: 'Sniper Bot',
+              description: 'Advanced Cryptocurrency Trading Bot',
+              url: typeof window !== 'undefined' ? window.location.origin : 'https://sniper-bot.app',
+              icons: ['https://z-cdn.chatglm.cn/z-ai/static/logo.svg'],
+            },
+            showQrModal: true,
+            relayUrl: 'wss://relay.walletconnect.com',
+          },
+        }),
         rainbowWallet,
-        walletConnectWallet,
+      ],
+    },
+    {
+      groupName: 'Hardware',
+      wallets: [
         ledgerWallet,
         safeWallet,
       ],
@@ -193,17 +214,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
       queries: {
         staleTime: 60 * 1000,
         gcTime: 5 * 60 * 1000,
+        retry: 2,
+        retryDelay: 1000,
       },
     },
   }));
 
-  // Suppress COOP errors from wallet SDKs in sandboxed environments
+  // Suppress common wallet SDK errors in sandboxed environments
   useEffect(() => {
     const originalError = console.error;
     console.error = (...args) => {
       const message = args[0];
-      if (typeof message === 'string' && message.includes('Cross-Origin-Opener-Policy')) {
-        return; // Suppress COOP errors in sandboxed environments
+      // Suppress COOP errors and WalletConnect relay errors in sandboxed environments
+      if (typeof message === 'string' && (
+        message.includes('Cross-Origin-Opener-Policy') ||
+        message.includes('Connection request reset') ||
+        message.includes('WebSocket connection failed')
+      )) {
+        return;
       }
       originalError.apply(console, args);
     };
