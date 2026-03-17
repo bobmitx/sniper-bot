@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAccount, useBalance, useDisconnect, useSwitchChain } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,39 @@ export function WalletConnection() {
   const [copied, setCopied] = useState(false);
   const [showPrivateKeyWarning, setShowPrivateKeyWarning] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced save function for wallet settings
+  const saveSettingsToDatabase = useCallback(async (updates: Record<string, unknown>) => {
+    try {
+      const response = await fetch('/api/bot', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (response.ok) {
+        console.log('✅ Wallet settings saved to database');
+      }
+    } catch (error) {
+      console.error('Failed to save wallet settings:', error);
+    }
+  }, []);
+
+  // Debounced save - saves 1 second after last change
+  const debouncedSave = useCallback((updates: Record<string, unknown>) => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      saveSettingsToDatabase(updates);
+    }, 1000);
+  }, [saveSettingsToDatabase]);
+
+  // Update bot config and persist to database
+  const updateAndSaveConfig = useCallback((updates: Record<string, unknown>) => {
+    setBotConfig((prev) => prev ? { ...prev, ...updates } : prev);
+    debouncedSave(updates);
+  }, [setBotConfig, debouncedSave]);
 
   // Update bot config when chain changes
   useEffect(() => {
@@ -195,10 +228,10 @@ export function WalletConnection() {
             <p className="text-sm text-muted-foreground">Address</p>
             <div className="flex items-center gap-2">
               <code className="text-sm">{formatAddress(address!)}</code>
-              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-6 sm:w-6 min-h-[44px] sm:min-h-0" onClick={copyAddress}>
+              <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-8 sm:w-8" onClick={copyAddress}>
                 {copied ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
               </Button>
-              <a href={getExplorerUrl()} target="_blank" rel="noopener noreferrer" className="p-2 sm:p-0">
+              <a href={getExplorerUrl()} target="_blank" rel="noopener noreferrer" className="p-2 sm:p-1">
                 <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-primary" />
               </a>
             </div>
@@ -242,8 +275,8 @@ export function WalletConnection() {
 
         {/* Security Settings */}
         <div className="space-y-3 sm:space-y-3 pt-4 border-t">
-          <div className="flex items-center justify-between py-1 sm:py-0">
-            <div className="space-y-0.5">
+          <div className="flex items-center justify-between py-2 sm:py-0">
+            <div className="space-y-0.5 flex-1">
               <Label className="flex items-center gap-2 text-sm sm:text-base">
                 <Lock className="h-4 w-4" />
                 Auto-approve Spending
@@ -252,19 +285,19 @@ export function WalletConnection() {
                 Automatically approve token spending
               </p>
             </div>
-            <Switch
-              checked={botConfig?.autoApprove || false}
-              onCheckedChange={(checked) => {
-                if (botConfig) {
-                  setBotConfig({ ...botConfig, autoApprove: checked });
-                }
-              }}
-              className="scale-110 sm:scale-100"
-            />
+            <div className="p-2 sm:p-0 -mr-2 sm:mr-0">
+              <Switch
+                checked={botConfig?.autoApprove || false}
+                onCheckedChange={(checked) => {
+                  updateAndSaveConfig({ autoApprove: checked });
+                }}
+                className="scale-110 sm:scale-100"
+              />
+            </div>
           </div>
           
-          <div className="flex items-center justify-between py-1 sm:py-0">
-            <div className="space-y-0.5">
+          <div className="flex items-center justify-between py-2 sm:py-0">
+            <div className="space-y-0.5 flex-1">
               <Label className="flex items-center gap-2 text-sm sm:text-base">
                 <Shield className="h-4 w-4" />
                 MEV Protection
@@ -273,19 +306,19 @@ export function WalletConnection() {
                 Protect against MEV attacks
               </p>
             </div>
-            <Switch
-              checked={botConfig?.mevProtection || false}
-              onCheckedChange={(checked) => {
-                if (botConfig) {
-                  setBotConfig({ ...botConfig, mevProtection: checked });
-                }
-              }}
-              className="scale-110 sm:scale-100"
-            />
+            <div className="p-2 sm:p-0 -mr-2 sm:mr-0">
+              <Switch
+                checked={botConfig?.mevProtection || false}
+                onCheckedChange={(checked) => {
+                  updateAndSaveConfig({ mevProtection: checked });
+                }}
+                className="scale-110 sm:scale-100"
+              />
+            </div>
           </div>
 
-          <div className="flex items-center justify-between py-1 sm:py-0">
-            <div className="space-y-0.5">
+          <div className="flex items-center justify-between py-2 sm:py-0">
+            <div className="space-y-0.5 flex-1">
               <Label className="flex items-center gap-2 text-sm sm:text-base">
                 <AlertTriangle className="h-4 w-4" />
                 Flash Loan Detection
@@ -294,15 +327,15 @@ export function WalletConnection() {
                 Detect potential flash loan attacks
               </p>
             </div>
-            <Switch
-              checked={botConfig?.flashLoanDetection || false}
-              onCheckedChange={(checked) => {
-                if (botConfig) {
-                  setBotConfig({ ...botConfig, flashLoanDetection: checked });
-                }
-              }}
-              className="scale-110 sm:scale-100"
-            />
+            <div className="p-2 sm:p-0 -mr-2 sm:mr-0">
+              <Switch
+                checked={botConfig?.flashLoanDetection || false}
+                onCheckedChange={(checked) => {
+                  updateAndSaveConfig({ flashLoanDetection: checked });
+                }}
+                className="scale-110 sm:scale-100"
+              />
+            </div>
           </div>
         </div>
       </CardContent>

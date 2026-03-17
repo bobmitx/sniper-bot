@@ -8,6 +8,7 @@ const ALLOWED_CONFIG_FIELDS = new Set([
   'targetToken', 'targetTokenSymbol', 'targetTokenName', 'baseToken',
   'strategy', 'strategyParams', 'buyTriggerType', 'buyTriggerValue',
   'buyAmount', 'buySlippage', 'buyGasPrice', 'buyGasLimit',
+  'minLiquidity', 'maxBuyPrice',
   'sellTriggerType', 'sellTriggerValue', 'sellSlippage', 'sellGasPrice', 'sellGasLimit',
   'takeProfitEnabled', 'takeProfitPercent', 'takeProfitAmount',
   'stopLossEnabled', 'stopLossPercent', 'stopLossType',

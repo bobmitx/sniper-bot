@@ -147,6 +147,8 @@ export function SniperPanel() {
           buySlippage: parseFloat(buySlippage) || 5,
           buyGasPrice: parseFloat(buyGasPrice) || 0,
           buyGasLimit: parseInt(buyGasLimit) || 250000,
+          minLiquidity: parseFloat(minLiquidity) || 100,
+          maxBuyPrice: maxBuyPrice ? parseFloat(maxBuyPrice) : null,
           sellSlippage: parseFloat(sellSlippage) || 5,
           sellGasPrice: parseFloat(sellGasPrice) || 0,
           sellGasLimit: parseInt(sellGasLimit) || 250000,
@@ -176,7 +178,7 @@ export function SniperPanel() {
     } finally {
       setIsSaving(false);
     }
-  }, [botConfig?.id, selectedChain, selectedDex, selectedBaseToken, buyTriggerTypes, buyTriggerValue, buyAmount, buySlippage, buyGasPrice, buyGasLimit, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, autoApprove, mevProtection, autoSweepEnabled, sweepChains, sweepInterval]);
+  }, [botConfig?.id, selectedChain, selectedDex, selectedBaseToken, buyTriggerTypes, buyTriggerValue, buyAmount, buySlippage, buyGasPrice, buyGasLimit, minLiquidity, maxBuyPrice, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, autoApprove, mevProtection, autoSweepEnabled, sweepChains, sweepInterval]);
   
   // Debounced save - saves 2 seconds after last change
   const debouncedSave = useCallback(() => {
@@ -225,6 +227,8 @@ export function SniperPanel() {
       if (botConfig.buySlippage) setBuySlippage(botConfig.buySlippage.toString());
       if (botConfig.buyGasPrice) setBuyGasPrice(botConfig.buyGasPrice.toString());
       if (botConfig.buyGasLimit) setBuyGasLimit(botConfig.buyGasLimit.toString());
+      if (botConfig.minLiquidity) setMinLiquidity(botConfig.minLiquidity.toString());
+      if (botConfig.maxBuyPrice) setMaxBuyPrice(botConfig.maxBuyPrice.toString());
       if (botConfig.sellSlippage) setSellSlippage(botConfig.sellSlippage.toString());
       if (botConfig.sellGasPrice) setSellGasPrice(botConfig.sellGasPrice.toString());
       if (botConfig.sellGasLimit) setSellGasLimit(botConfig.sellGasLimit.toString());

@@ -38,6 +38,8 @@ model BotConfig {
   buySlippage       Float    @default(5.0) // Slippage tolerance %
   buyGasPrice       Float    @default(50.0) // Gas price in gwei
   buyGasLimit       Int      @default(500000)
+  minLiquidity      Float    @default(100.0) // Minimum liquidity in USD
+  maxBuyPrice       Float?   // Maximum buy price (optional)
   
   // Sell Trigger Conditions
   sellTriggerType   String   @default("take_profit") // take_profit, stop_loss, trailing_stop, time_based, custom

@@ -80,6 +80,8 @@ export const botConfigUpdateSchema = z.object({
   buySlippage: slippageSchema.optional(),
   buyGasPrice: gasPriceSchema.optional(),
   buyGasLimit: gasLimitSchema.optional(),
+  minLiquidity: nonNegativeNumberSchema.optional(),
+  maxBuyPrice: nonNegativeNumberSchema.optional().nullable(),
   sellTriggerType: z.string().max(50).optional(),
   sellTriggerValue: nonNegativeNumberSchema.optional(),
   sellSlippage: slippageSchema.optional(),
