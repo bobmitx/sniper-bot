@@ -475,22 +475,20 @@ export function TradingDashboard() {
               <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
               <span className="text-lg sm:text-xl font-bold hidden sm:inline">Sniper Bot</span>
             </div>
-            {/* Connection status badge - show on all screens */}
+            {/* Connection status badge - show on larger screens */}
             <Badge 
               variant={wsConnected ? 'default' : 'secondary'} 
-              className="hidden xs:flex ml-1 sm:ml-2 text-xs"
+              className="hidden sm:inline-flex ml-1 text-xs whitespace-nowrap"
             >
               {wsConnected ? (
                 <>
                   <CheckCircle className="mr-1 h-3 w-3" />
-                  <span className="hidden sm:inline">Connected</span>
-                  <span className="sm:hidden">Live</span>
+                  Connected
                 </>
               ) : (
                 <>
                   <XCircle className="mr-1 h-3 w-3" />
-                  <span className="hidden sm:inline">Disconnected</span>
-                  <span className="sm:hidden">Offline</span>
+                  Disconnected
                 </>
               )}
             </Badge>
@@ -498,7 +496,7 @@ export function TradingDashboard() {
             {botConfig?.isActive && (
               <Badge 
                 variant="outline" 
-                className="bg-green-500/10 text-green-500 border-green-500/20 hidden sm:flex"
+                className="bg-green-500/10 text-green-500 border-green-500/20 hidden md:flex whitespace-nowrap"
               >
                 <Activity className="mr-1 h-3 w-3 animate-pulse" />
                 Active
@@ -508,7 +506,7 @@ export function TradingDashboard() {
             {isSavingConfig && (
               <Badge 
                 variant="outline" 
-                className="bg-blue-500/10 text-blue-500 border-blue-500/20 hidden sm:flex"
+                className="bg-blue-500/10 text-blue-500 border-blue-500/20 hidden md:flex whitespace-nowrap"
               >
                 <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
                 Saving...
@@ -641,30 +639,30 @@ export function TradingDashboard() {
         {/* Main Tabs */}
         <Tabs defaultValue="dashboard" className="space-y-4">
           <ScrollArea className="w-full whitespace-nowrap">
-            <TabsList className="grid w-full grid-cols-7 min-w-[700px] sm:min-w-0 sm:w-auto">
-              <TabsTrigger value="dashboard" className="min-h-[44px] px-2 sm:px-4">
-                <LineChart className="h-4 w-4 sm:mr-2" />
+            <TabsList className="grid w-full grid-cols-6 min-w-[600px] sm:min-w-0 sm:w-auto sm:inline-flex">
+              <TabsTrigger value="dashboard" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
+                <LineChart className="h-4 w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Dashboard</span>
               </TabsTrigger>
-              <TabsTrigger value="wallet" className="min-h-[44px] px-2 sm:px-4">
-                <Wallet className="h-4 w-4 sm:mr-2" />
+              <TabsTrigger value="wallet" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
+                <Wallet className="h-4 w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Wallet</span>
               </TabsTrigger>
-              <TabsTrigger value="config" className="min-h-[44px] px-2 sm:px-4">
-                <Settings className="h-4 w-4 sm:mr-2" />
+              <TabsTrigger value="config" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
+                <Settings className="h-4 w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Config</span>
               </TabsTrigger>
-              <TabsTrigger value="trading-activity" className="min-h-[44px] px-2 sm:px-4">
-                <BarChart3 className="h-4 w-4 sm:mr-2" />
+              <TabsTrigger value="trading-activity" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
+                <BarChart3 className="h-4 w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Trading Activity</span>
                 <span className="sm:hidden">Activity</span>
               </TabsTrigger>
-              <TabsTrigger value="sniper" className="min-h-[44px] px-2 sm:px-4">
-                <Crosshair className="h-4 w-4 sm:mr-2" />
+              <TabsTrigger value="sniper" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
+                <Crosshair className="h-4 w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Sniper</span>
               </TabsTrigger>
-              <TabsTrigger value="help" className="min-h-[44px] px-2 sm:px-4">
-                <HelpCircle className="h-4 w-4 sm:mr-2" />
+              <TabsTrigger value="help" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
+                <HelpCircle className="h-4 w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Help</span>
               </TabsTrigger>
             </TabsList>
