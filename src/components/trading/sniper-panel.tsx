@@ -138,66 +138,151 @@ export function SniperPanel() {
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Save settings to database with debounce
+  // Use refs to store latest state values for the save function (avoids stale closures)
+  const stateRef = useRef({
+    selectedChain,
+    selectedDex,
+    selectedBaseToken,
+    buyTriggerTypes,
+    buyTriggerValue,
+    buyAmount,
+    buySlippage,
+    buyGasPrice,
+    buyGasLimit,
+    minLiquidity,
+    maxBuyPrice,
+    sellSlippage,
+    sellGasPrice,
+    sellGasLimit,
+    takeProfitEnabled,
+    takeProfitPercent,
+    takeProfitAmount,
+    stopLossEnabled,
+    stopLossPercent,
+    stopLossType,
+    trailingStopEnabled,
+    trailingStopPercent,
+    trailingStopActivation,
+    autoApprove,
+    mevProtection,
+    positionSizingType,
+    maxPositionSize,
+    minPositionSize,
+    maxDailyLoss,
+    maxDailyTrades,
+    maxOpenPositions,
+    cooldownPeriod,
+    flashLoanDetection,
+    autoSweepEnabled,
+    sweepChains,
+    sweepInterval,
+  });
+
+  // Keep refs updated with latest state
+  useEffect(() => {
+    stateRef.current = {
+      selectedChain,
+      selectedDex,
+      selectedBaseToken,
+      buyTriggerTypes,
+      buyTriggerValue,
+      buyAmount,
+      buySlippage,
+      buyGasPrice,
+      buyGasLimit,
+      minLiquidity,
+      maxBuyPrice,
+      sellSlippage,
+      sellGasPrice,
+      sellGasLimit,
+      takeProfitEnabled,
+      takeProfitPercent,
+      takeProfitAmount,
+      stopLossEnabled,
+      stopLossPercent,
+      stopLossType,
+      trailingStopEnabled,
+      trailingStopPercent,
+      trailingStopActivation,
+      autoApprove,
+      mevProtection,
+      positionSizingType,
+      maxPositionSize,
+      minPositionSize,
+      maxDailyLoss,
+      maxDailyTrades,
+      maxOpenPositions,
+      cooldownPeriod,
+      flashLoanDetection,
+      autoSweepEnabled,
+      sweepChains,
+      sweepInterval,
+    };
+  }, [selectedChain, selectedDex, selectedBaseToken, buyTriggerTypes, buyTriggerValue, buyAmount, buySlippage, buyGasPrice, buyGasLimit, minLiquidity, maxBuyPrice, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, autoApprove, mevProtection, positionSizingType, maxPositionSize, minPositionSize, maxDailyLoss, maxDailyTrades, maxOpenPositions, cooldownPeriod, flashLoanDetection, autoSweepEnabled, sweepChains, sweepInterval]);
+
+  // Save settings to database - uses refs to avoid stale closures
   const saveSettingsToDatabase = useCallback(async () => {
     if (!botConfig?.id) return;
     
+    const state = stateRef.current;
     setIsSaving(true);
     try {
       const response = await fetch('/api/bot', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          network: selectedChain,
-          exchange: selectedDex,
-          baseToken: selectedBaseToken,
-          buyTriggerType: buyTriggerTypes.join(','),
-          buyTriggerValue: parseFloat(buyTriggerValue) || 5,
-          buyAmount: parseFloat(buyAmount) || 0.1,
-          buySlippage: parseFloat(buySlippage) || 5,
-          buyGasPrice: parseFloat(buyGasPrice) || 0,
-          buyGasLimit: parseInt(buyGasLimit) || 250000,
-          minLiquidity: parseFloat(minLiquidity) || 100,
-          maxBuyPrice: maxBuyPrice ? parseFloat(maxBuyPrice) : null,
-          sellSlippage: parseFloat(sellSlippage) || 5,
-          sellGasPrice: parseFloat(sellGasPrice) || 0,
-          sellGasLimit: parseInt(sellGasLimit) || 250000,
-          takeProfitEnabled,
-          takeProfitPercent: parseFloat(takeProfitPercent) || 50,
-          takeProfitAmount: parseFloat(takeProfitAmount) || 100,
-          stopLossEnabled,
-          stopLossPercent: parseFloat(stopLossPercent) || 10,
-          stopLossType,
-          trailingStopEnabled,
-          trailingStopPercent: parseFloat(trailingStopPercent) || 5,
-          trailingStopActivation: parseFloat(trailingStopActivation) || 10,
-          autoApprove,
-          mevProtection,
+          network: state.selectedChain,
+          exchange: state.selectedDex,
+          baseToken: state.selectedBaseToken,
+          buyTriggerType: state.buyTriggerTypes.join(','),
+          buyTriggerValue: parseFloat(state.buyTriggerValue) || 5,
+          buyAmount: parseFloat(state.buyAmount) || 0.1,
+          buySlippage: parseFloat(state.buySlippage) || 5,
+          buyGasPrice: parseFloat(state.buyGasPrice) || 0,
+          buyGasLimit: parseInt(state.buyGasLimit) || 250000,
+          minLiquidity: parseFloat(state.minLiquidity) || 100,
+          maxBuyPrice: state.maxBuyPrice ? parseFloat(state.maxBuyPrice) : null,
+          sellSlippage: parseFloat(state.sellSlippage) || 5,
+          sellGasPrice: parseFloat(state.sellGasPrice) || 0,
+          sellGasLimit: parseInt(state.sellGasLimit) || 250000,
+          takeProfitEnabled: state.takeProfitEnabled,
+          takeProfitPercent: parseFloat(state.takeProfitPercent) || 50,
+          takeProfitAmount: parseFloat(state.takeProfitAmount) || 100,
+          stopLossEnabled: state.stopLossEnabled,
+          stopLossPercent: parseFloat(state.stopLossPercent) || 10,
+          stopLossType: state.stopLossType,
+          trailingStopEnabled: state.trailingStopEnabled,
+          trailingStopPercent: parseFloat(state.trailingStopPercent) || 5,
+          trailingStopActivation: parseFloat(state.trailingStopActivation) || 10,
+          autoApprove: state.autoApprove,
+          mevProtection: state.mevProtection,
           // Risk Management settings
-          positionSizingType,
-          maxPositionSize: parseFloat(maxPositionSize) || 1.0,
-          minPositionSize: parseFloat(minPositionSize) || 0.01,
-          maxDailyLoss: parseFloat(maxDailyLoss) || 0.5,
-          maxDailyTrades: parseInt(maxDailyTrades) || 10,
-          maxOpenPositions: parseInt(maxOpenPositions) || 5,
-          cooldownPeriod: parseInt(cooldownPeriod) || 300,
-          flashLoanDetection,
+          positionSizingType: state.positionSizingType,
+          maxPositionSize: parseFloat(state.maxPositionSize) || 1.0,
+          minPositionSize: parseFloat(state.minPositionSize) || 0.01,
+          maxDailyLoss: parseFloat(state.maxDailyLoss) || 0.5,
+          maxDailyTrades: parseInt(state.maxDailyTrades) || 10,
+          maxOpenPositions: parseInt(state.maxOpenPositions) || 5,
+          cooldownPeriod: parseInt(state.cooldownPeriod) || 300,
+          flashLoanDetection: state.flashLoanDetection,
           // Auto-Sweep settings
-          autoSweepEnabled,
-          sweepChains: sweepChains.join(','),
-          sweepInterval: parseInt(sweepInterval) || 30,
+          autoSweepEnabled: state.autoSweepEnabled,
+          sweepChains: state.sweepChains.join(','),
+          sweepInterval: parseInt(state.sweepInterval) || 30,
         }),
       });
       
       if (response.ok) {
         console.log('✅ Settings saved to database');
+      } else {
+        console.error('❌ Failed to save settings:', await response.text());
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [botConfig?.id, selectedChain, selectedDex, selectedBaseToken, buyTriggerTypes, buyTriggerValue, buyAmount, buySlippage, buyGasPrice, buyGasLimit, minLiquidity, maxBuyPrice, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, autoApprove, mevProtection, positionSizingType, maxPositionSize, minPositionSize, maxDailyLoss, maxDailyTrades, maxOpenPositions, cooldownPeriod, flashLoanDetection, autoSweepEnabled, sweepChains, sweepInterval]);
+  }, [botConfig?.id]);
   
   // Debounced save - saves 2 seconds after last change
   const debouncedSave = useCallback(() => {
@@ -346,6 +431,12 @@ export function SniperPanel() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        // Clear any pending save to prevent conflicts
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        // Fetch and sync from database
         fetchAndSyncConfig();
       }
     };
