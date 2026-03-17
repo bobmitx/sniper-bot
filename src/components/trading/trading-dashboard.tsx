@@ -390,14 +390,14 @@ export function TradingDashboard() {
           setWsConnected(false);
         });
 
-        socket.on('price_update', (data: { symbol: string; price: number; change: number }) => {
+        socket.on('price_update', (data: { symbol: string; price: number; change: number; marketCap?: number; volume24h?: number; timestamp?: number }) => {
           setPrice(data.symbol, {
             symbol: data.symbol,
             price: data.price,
             priceChange24h: data.change,
-            volume24h: 0,
-            marketCap: 0,
-            lastUpdated: new Date().toISOString(),
+            volume24h: data.volume24h || 0,
+            marketCap: data.marketCap || 0,
+            lastUpdated: data.timestamp ? new Date(data.timestamp).toISOString() : new Date().toISOString(),
           });
         });
 
@@ -673,47 +673,79 @@ export function TradingDashboard() {
             <div className="grid gap-4 md:grid-cols-2">
               {/* Live Prices */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
-                    Live Prices
-                  </CardTitle>
-                  <CardDescription>Real-time cryptocurrency prices</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {Object.values(prices).slice(0, 8).map((price) => (
-                      <div key={price.symbol} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{price.symbol}</span>
-                          {price.priceChange24h !== undefined && (
-                            <Badge
-                              variant="outline"
-                              className={
-                                price.priceChange24h >= 0
-                                  ? 'bg-green-500/10 text-green-500'
-                                  : 'bg-red-500/10 text-red-500'
-                              }
-                            >
-                              {price.priceChange24h >= 0 ? '+' : ''}
-                              {price.priceChange24h.toFixed(2)}%
-                            </Badge>
-                          )}
-                        </div>
-                        <span className="font-mono">
-                          ${price.price < 0.01 ? price.price.toExponential(2) : price.price.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: price.price < 1 ? 6 : 2,
-                          })}
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5" />
+                      Live Prices
+                    </CardTitle>
+                    {wsConnected && (
+                      <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+                        <span className="relative flex h-2 w-2 mr-1">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </span>
-                      </div>
-                    ))}
-                    {Object.keys(prices).length === 0 && (
-                      <div className="text-center text-muted-foreground py-4">
-                        Waiting for price data...
-                      </div>
+                        LIVE
+                      </Badge>
                     )}
                   </div>
+                  <CardDescription>
+                    Real-time cryptocurrency prices from CoinGecko
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[280px]">
+                    <div className="space-y-2">
+                      {Object.values(prices).filter(p => p.price > 0).slice(0, 10).map((price) => (
+                        <div key={price.symbol} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium w-12">{price.symbol}</span>
+                            {price.priceChange24h !== undefined && (
+                              <Badge
+                                variant="outline"
+                                className={
+                                  price.priceChange24h >= 0
+                                    ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                                    : 'bg-red-500/10 text-red-500 border-red-500/20'
+                                }
+                              >
+                                {price.priceChange24h >= 0 ? '+' : ''}
+                                {price.priceChange24h.toFixed(2)}%
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <div className="font-mono font-medium">
+                              ${price.price < 0.01 ? price.price.toExponential(2) : price.price.toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: price.price < 1 ? 6 : 2,
+                              })}
+                            </div>
+                            {price.volume24h > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                Vol: ${(price.volume24h / 1000000).toFixed(1)}M
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {Object.keys(prices).filter(k => prices[k]?.price > 0).length === 0 && (
+                        <div className="text-center text-muted-foreground py-8">
+                          {wsConnected ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <RefreshCw className="h-6 w-6 animate-spin" />
+                              <span>Loading live prices...</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2">
+                              <XCircle className="h-6 w-6 text-red-500" />
+                              <span>Connecting to price feed...</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
                 </CardContent>
               </Card>
 
@@ -948,9 +980,9 @@ export function TradingDashboard() {
                                     </div>
                                   ) : tokenSearchResults.length > 0 ? (
                                     <div className="space-y-1">
-                                      {tokenSearchResults.map((token) => (
+                                      {tokenSearchResults.map((token, index) => (
                                         <button
-                                          key={token.address}
+                                          key={`${token.address}-${index}`}
                                           className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-muted text-left"
                                           onClick={() => {
                                             updateBotConfig({ 
@@ -1027,9 +1059,9 @@ export function TradingDashboard() {
                       <div className="space-y-2">
                         <Label className="text-xs text-muted-foreground">Popular tokens on {chainConfigs[botConfig.network as ChainName]?.name || botConfig.network}</Label>
                         <div className="flex flex-wrap gap-1">
-                          {getPopularTokensForChain(botConfig.network as ChainName).slice(0, 6).map((token) => (
+                          {getPopularTokensForChain(botConfig.network as ChainName).slice(0, 6).map((token, index) => (
                             <Button
-                              key={token.address}
+                              key={`${token.symbol}-${token.address}-${index}`}
                               variant="outline"
                               size="sm"
                               className="h-7 text-xs"
@@ -1484,21 +1516,9 @@ export function TradingDashboard() {
                                 type="number"
                                 step="1"
                                 min="0.1"
-                                value={botConfig.takeProfitPercent ?? ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val === '' || val === '-' || val === '.') return;
-                                  const num = parseFloat(val);
-                                  if (!isNaN(num) && num >= 0) {
-                                    updateBotConfig({ takeProfitPercent: num });
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  if (isNaN(val) || val < 0.1) {
-                                    updateBotConfig({ takeProfitPercent: 0.1 });
-                                  }
-                                }}
+                                value={getInputDisplayValue('takeProfitPercent', botConfig.takeProfitPercent)}
+                                onChange={(e) => handleNumberInputChange('takeProfitPercent', e.target.value)}
+                                onBlur={() => handleNumberInputBlur('takeProfitPercent', 50, 0.1)}
                               />
                             </div>
                             <div className="space-y-2">
@@ -1508,29 +1528,22 @@ export function TradingDashboard() {
                                 step="1"
                                 min="1"
                                 max="100"
-                                value={botConfig.takeProfitAmount ?? ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val === '' || val === '-' || val === '.') return;
-                                  const num = parseFloat(val);
-                                  if (!isNaN(num) && num >= 1 && num <= 100) {
-                                    updateBotConfig({ takeProfitAmount: num });
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  if (isNaN(val) || val < 1) {
-                                    updateBotConfig({ takeProfitAmount: 1 });
-                                  } else if (val > 100) {
-                                    updateBotConfig({ takeProfitAmount: 100 });
-                                  }
-                                }}
+                                value={getInputDisplayValue('takeProfitAmount', botConfig.takeProfitAmount)}
+                                onChange={(e) => handleNumberInputChange('takeProfitAmount', e.target.value, 1, 100)}
+                                onBlur={() => handleNumberInputBlur('takeProfitAmount', 100, 1, 100)}
                               />
                             </div>
                           </div>
                           <Slider
                             value={[botConfig.takeProfitPercent]}
-                            onValueChange={([value]) => updateBotConfig({ takeProfitPercent: value })}
+                            onValueChange={([value]) => {
+                              setLocalInputValues(prev => {
+                                const next = { ...prev };
+                                delete next['takeProfitPercent'];
+                                return next;
+                              });
+                              updateBotConfig({ takeProfitPercent: value });
+                            }}
                             max={500}
                             step={1}
                           />
@@ -1557,23 +1570,9 @@ export function TradingDashboard() {
                                 step="0.5"
                                 min="0.1"
                                 max="100"
-                                value={botConfig.stopLossPercent ?? ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val === '' || val === '-' || val === '.') return;
-                                  const num = parseFloat(val);
-                                  if (!isNaN(num) && num >= 0 && num <= 100) {
-                                    updateBotConfig({ stopLossPercent: num });
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  if (isNaN(val) || val < 0.1) {
-                                    updateBotConfig({ stopLossPercent: 0.1 });
-                                  } else if (val > 100) {
-                                    updateBotConfig({ stopLossPercent: 100 });
-                                  }
-                                }}
+                                value={getInputDisplayValue('stopLossPercent', botConfig.stopLossPercent)}
+                                onChange={(e) => handleNumberInputChange('stopLossPercent', e.target.value, 0.1, 100)}
+                                onBlur={() => handleNumberInputBlur('stopLossPercent', 15, 0.1, 100)}
                               />
                             </div>
                             <div className="space-y-2">
@@ -1595,7 +1594,14 @@ export function TradingDashboard() {
                           </div>
                           <Slider
                             value={[botConfig.stopLossPercent]}
-                            onValueChange={([value]) => updateBotConfig({ stopLossPercent: value })}
+                            onValueChange={([value]) => {
+                              setLocalInputValues(prev => {
+                                const next = { ...prev };
+                                delete next['stopLossPercent'];
+                                return next;
+                              });
+                              updateBotConfig({ stopLossPercent: value });
+                            }}
                             max={100}
                             step={0.5}
                           />
@@ -1620,21 +1626,9 @@ export function TradingDashboard() {
                               type="number"
                               step="0.5"
                               min="0.1"
-                              value={botConfig.trailingStopPercent ?? ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === '' || val === '-' || val === '.') return;
-                                const num = parseFloat(val);
-                                if (!isNaN(num) && num >= 0.1) {
-                                  updateBotConfig({ trailingStopPercent: num });
-                                }
-                              }}
-                              onBlur={(e) => {
-                                const val = parseFloat(e.target.value);
-                                if (isNaN(val) || val < 0.1) {
-                                  updateBotConfig({ trailingStopPercent: 0.1 });
-                                }
-                              }}
+                              value={getInputDisplayValue('trailingStopPercent', botConfig.trailingStopPercent)}
+                              onChange={(e) => handleNumberInputChange('trailingStopPercent', e.target.value, 0.1)}
+                              onBlur={() => handleNumberInputBlur('trailingStopPercent', 10, 0.1)}
                             />
                           </div>
                           <div className="space-y-2">
@@ -1643,21 +1637,9 @@ export function TradingDashboard() {
                               type="number"
                               step="1"
                               min="0"
-                              value={botConfig.trailingStopActivation ?? ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === '' || val === '-') return;
-                                const num = parseFloat(val);
-                                if (!isNaN(num) && num >= 0) {
-                                  updateBotConfig({ trailingStopActivation: num });
-                                }
-                              }}
-                              onBlur={(e) => {
-                                const val = parseFloat(e.target.value);
-                                if (isNaN(val) || val < 0) {
-                                  updateBotConfig({ trailingStopActivation: 0 });
-                                }
-                              }}
+                              value={getInputDisplayValue('trailingStopActivation', botConfig.trailingStopActivation)}
+                              onChange={(e) => handleNumberInputChange('trailingStopActivation', e.target.value, 0)}
+                              onBlur={() => handleNumberInputBlur('trailingStopActivation', 20, 0)}
                             />
                           </div>
                         </div>

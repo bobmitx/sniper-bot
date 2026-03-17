@@ -105,6 +105,16 @@ export function SniperPanel() {
   const [autoApprove, setAutoApprove] = useState(true);
   const [mevProtection, setMevProtection] = useState(true);
   
+  // Risk Management settings
+  const [positionSizingType, setPositionSizingType] = useState('fixed');
+  const [maxPositionSize, setMaxPositionSize] = useState('1.0');
+  const [minPositionSize, setMinPositionSize] = useState('0.01');
+  const [maxDailyLoss, setMaxDailyLoss] = useState('0.5');
+  const [maxDailyTrades, setMaxDailyTrades] = useState('10');
+  const [maxOpenPositions, setMaxOpenPositions] = useState('5');
+  const [cooldownPeriod, setCooldownPeriod] = useState('300');
+  const [flashLoanDetection, setFlashLoanDetection] = useState(true);
+  
   // Auto-sweep mode
   const [autoSweepEnabled, setAutoSweepEnabled] = useState(false);
   const [sweepChains, setSweepChains] = useState<string[]>([]);
@@ -127,58 +137,152 @@ export function SniperPanel() {
   // Debounced save timer for auto-persisting settings
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
-  // Save settings to database with debounce
+
+  // Use refs to store latest state values for the save function (avoids stale closures)
+  const stateRef = useRef({
+    selectedChain,
+    selectedDex,
+    selectedBaseToken,
+    buyTriggerTypes,
+    buyTriggerValue,
+    buyAmount,
+    buySlippage,
+    buyGasPrice,
+    buyGasLimit,
+    minLiquidity,
+    maxBuyPrice,
+    sellSlippage,
+    sellGasPrice,
+    sellGasLimit,
+    takeProfitEnabled,
+    takeProfitPercent,
+    takeProfitAmount,
+    stopLossEnabled,
+    stopLossPercent,
+    stopLossType,
+    trailingStopEnabled,
+    trailingStopPercent,
+    trailingStopActivation,
+    autoApprove,
+    mevProtection,
+    positionSizingType,
+    maxPositionSize,
+    minPositionSize,
+    maxDailyLoss,
+    maxDailyTrades,
+    maxOpenPositions,
+    cooldownPeriod,
+    flashLoanDetection,
+    autoSweepEnabled,
+    sweepChains,
+    sweepInterval,
+  });
+
+  // Keep refs updated with latest state
+  useEffect(() => {
+    stateRef.current = {
+      selectedChain,
+      selectedDex,
+      selectedBaseToken,
+      buyTriggerTypes,
+      buyTriggerValue,
+      buyAmount,
+      buySlippage,
+      buyGasPrice,
+      buyGasLimit,
+      minLiquidity,
+      maxBuyPrice,
+      sellSlippage,
+      sellGasPrice,
+      sellGasLimit,
+      takeProfitEnabled,
+      takeProfitPercent,
+      takeProfitAmount,
+      stopLossEnabled,
+      stopLossPercent,
+      stopLossType,
+      trailingStopEnabled,
+      trailingStopPercent,
+      trailingStopActivation,
+      autoApprove,
+      mevProtection,
+      positionSizingType,
+      maxPositionSize,
+      minPositionSize,
+      maxDailyLoss,
+      maxDailyTrades,
+      maxOpenPositions,
+      cooldownPeriod,
+      flashLoanDetection,
+      autoSweepEnabled,
+      sweepChains,
+      sweepInterval,
+    };
+  }, [selectedChain, selectedDex, selectedBaseToken, buyTriggerTypes, buyTriggerValue, buyAmount, buySlippage, buyGasPrice, buyGasLimit, minLiquidity, maxBuyPrice, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, autoApprove, mevProtection, positionSizingType, maxPositionSize, minPositionSize, maxDailyLoss, maxDailyTrades, maxOpenPositions, cooldownPeriod, flashLoanDetection, autoSweepEnabled, sweepChains, sweepInterval]);
+
+  // Save settings to database - uses refs to avoid stale closures
   const saveSettingsToDatabase = useCallback(async () => {
     if (!botConfig?.id) return;
     
+    const state = stateRef.current;
     setIsSaving(true);
     try {
       const response = await fetch('/api/bot', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          network: selectedChain,
-          exchange: selectedDex,
-          baseToken: selectedBaseToken,
-          buyTriggerType: buyTriggerTypes.join(','),
-          buyTriggerValue: parseFloat(buyTriggerValue) || 5,
-          buyAmount: parseFloat(buyAmount) || 0.1,
-          buySlippage: parseFloat(buySlippage) || 5,
-          buyGasPrice: parseFloat(buyGasPrice) || 0,
-          buyGasLimit: parseInt(buyGasLimit) || 250000,
-          minLiquidity: parseFloat(minLiquidity) || 100,
-          maxBuyPrice: maxBuyPrice ? parseFloat(maxBuyPrice) : null,
-          sellSlippage: parseFloat(sellSlippage) || 5,
-          sellGasPrice: parseFloat(sellGasPrice) || 0,
-          sellGasLimit: parseInt(sellGasLimit) || 250000,
-          takeProfitEnabled,
-          takeProfitPercent: parseFloat(takeProfitPercent) || 50,
-          takeProfitAmount: parseFloat(takeProfitAmount) || 100,
-          stopLossEnabled,
-          stopLossPercent: parseFloat(stopLossPercent) || 10,
-          stopLossType,
-          trailingStopEnabled,
-          trailingStopPercent: parseFloat(trailingStopPercent) || 5,
-          trailingStopActivation: parseFloat(trailingStopActivation) || 10,
-          autoApprove,
-          mevProtection,
+          network: state.selectedChain,
+          exchange: state.selectedDex,
+          baseToken: state.selectedBaseToken,
+          buyTriggerType: state.buyTriggerTypes.join(','),
+          buyTriggerValue: parseFloat(state.buyTriggerValue) || 5,
+          buyAmount: parseFloat(state.buyAmount) || 0.1,
+          buySlippage: parseFloat(state.buySlippage) || 5,
+          buyGasPrice: parseFloat(state.buyGasPrice) || 0,
+          buyGasLimit: parseInt(state.buyGasLimit) || 250000,
+          minLiquidity: parseFloat(state.minLiquidity) || 100,
+          maxBuyPrice: state.maxBuyPrice ? parseFloat(state.maxBuyPrice) : null,
+          sellSlippage: parseFloat(state.sellSlippage) || 5,
+          sellGasPrice: parseFloat(state.sellGasPrice) || 0,
+          sellGasLimit: parseInt(state.sellGasLimit) || 250000,
+          takeProfitEnabled: state.takeProfitEnabled,
+          takeProfitPercent: parseFloat(state.takeProfitPercent) || 50,
+          takeProfitAmount: parseFloat(state.takeProfitAmount) || 100,
+          stopLossEnabled: state.stopLossEnabled,
+          stopLossPercent: parseFloat(state.stopLossPercent) || 10,
+          stopLossType: state.stopLossType,
+          trailingStopEnabled: state.trailingStopEnabled,
+          trailingStopPercent: parseFloat(state.trailingStopPercent) || 5,
+          trailingStopActivation: parseFloat(state.trailingStopActivation) || 10,
+          autoApprove: state.autoApprove,
+          mevProtection: state.mevProtection,
+          // Risk Management settings
+          positionSizingType: state.positionSizingType,
+          maxPositionSize: parseFloat(state.maxPositionSize) || 1.0,
+          minPositionSize: parseFloat(state.minPositionSize) || 0.01,
+          maxDailyLoss: parseFloat(state.maxDailyLoss) || 0.5,
+          maxDailyTrades: parseInt(state.maxDailyTrades) || 10,
+          maxOpenPositions: parseInt(state.maxOpenPositions) || 5,
+          cooldownPeriod: parseInt(state.cooldownPeriod) || 300,
+          flashLoanDetection: state.flashLoanDetection,
           // Auto-Sweep settings
-          autoSweepEnabled,
-          sweepChains: sweepChains.join(','),
-          sweepInterval: parseInt(sweepInterval) || 30,
+          autoSweepEnabled: state.autoSweepEnabled,
+          sweepChains: state.sweepChains.join(','),
+          sweepInterval: parseInt(state.sweepInterval) || 30,
         }),
       });
       
       if (response.ok) {
         console.log('✅ Settings saved to database');
+      } else {
+        console.error('❌ Failed to save settings:', await response.text());
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [botConfig?.id, selectedChain, selectedDex, selectedBaseToken, buyTriggerTypes, buyTriggerValue, buyAmount, buySlippage, buyGasPrice, buyGasLimit, minLiquidity, maxBuyPrice, sellSlippage, sellGasPrice, sellGasLimit, takeProfitEnabled, takeProfitPercent, takeProfitAmount, stopLossEnabled, stopLossPercent, stopLossType, trailingStopEnabled, trailingStopPercent, trailingStopActivation, autoApprove, mevProtection, autoSweepEnabled, sweepChains, sweepInterval]);
+  }, [botConfig?.id]);
   
   // Debounced save - saves 2 seconds after last change
   const debouncedSave = useCallback(() => {
@@ -195,7 +299,36 @@ export function SniperPanel() {
     setUserModifiedSettings(true);
     debouncedSave();
   }, [debouncedSave]);
-  
+
+  // Helper function to validate and set default for numeric inputs on blur
+  const handleNumericBlur = useCallback((
+    value: string,
+    setter: (val: string) => void,
+    defaultValue: string,
+    min?: number,
+    max?: number
+  ) => {
+    if (value === '' || value === '-') {
+      // If empty or just a minus sign, set to default
+      setter(defaultValue);
+      markModifiedAndSave();
+      return;
+    }
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+      setter(defaultValue);
+      markModifiedAndSave();
+      return;
+    }
+    // Apply min/max constraints
+    let finalValue = num;
+    if (min !== undefined && finalValue < min) finalValue = min;
+    if (max !== undefined && finalValue > max) finalValue = max;
+    setter(finalValue.toString());
+    // Always save on blur, regardless of whether value was corrected
+    markModifiedAndSave();
+  }, [markModifiedAndSave]);
+
   // Toggle trigger type selection (multi-select)
   const handleTriggerTypeToggle = useCallback((type: string) => {
     setBuyTriggerTypes(prev => {
@@ -208,60 +341,111 @@ export function SniperPanel() {
     });
     markModifiedAndSave();
   }, [markModifiedAndSave]);
-  
+
+  // Helper to sync state from a config object
+  const syncStateFromConfig = useCallback((config: typeof botConfig) => {
+    if (!config) return;
+    queueMicrotask(() => {
+      if (config.network) setSelectedChain(config.network);
+      if (config.exchange) setSelectedDex(config.exchange);
+      if (config.baseToken) setSelectedBaseToken(config.baseToken);
+      if (config.buyTriggerType) {
+        const types = config.buyTriggerType.split(',').filter(Boolean);
+        setBuyTriggerTypes(types.length > 0 ? types : ['liquidity_add']);
+      }
+      if (config.buyTriggerValue !== undefined) setBuyTriggerValue(config.buyTriggerValue.toString());
+      if (config.buyAmount !== undefined) setBuyAmount(config.buyAmount.toString());
+      if (config.buySlippage !== undefined) setBuySlippage(config.buySlippage.toString());
+      if (config.buyGasPrice !== undefined) setBuyGasPrice(config.buyGasPrice.toString());
+      if (config.buyGasLimit !== undefined) setBuyGasLimit(config.buyGasLimit.toString());
+      if (config.minLiquidity !== undefined) setMinLiquidity(config.minLiquidity.toString());
+      if (config.maxBuyPrice) setMaxBuyPrice(config.maxBuyPrice.toString());
+      if (config.sellSlippage !== undefined) setSellSlippage(config.sellSlippage.toString());
+      if (config.sellGasPrice !== undefined) setSellGasPrice(config.sellGasPrice.toString());
+      if (config.sellGasLimit !== undefined) setSellGasLimit(config.sellGasLimit.toString());
+      if (config.takeProfitEnabled !== undefined) setTakeProfitEnabled(config.takeProfitEnabled);
+      if (config.takeProfitPercent !== undefined) setTakeProfitPercent(config.takeProfitPercent.toString());
+      if (config.takeProfitAmount !== undefined) setTakeProfitAmount(config.takeProfitAmount.toString());
+      if (config.stopLossEnabled !== undefined) setStopLossEnabled(config.stopLossEnabled);
+      if (config.stopLossPercent !== undefined) setStopLossPercent(config.stopLossPercent.toString());
+      if (config.stopLossType) setStopLossType(config.stopLossType);
+      if (config.trailingStopEnabled !== undefined) setTrailingStopEnabled(config.trailingStopEnabled);
+      if (config.trailingStopPercent !== undefined) setTrailingStopPercent(config.trailingStopPercent.toString());
+      if (config.trailingStopActivation !== undefined) setTrailingStopActivation(config.trailingStopActivation.toString());
+      if (config.autoApprove !== undefined) setAutoApprove(config.autoApprove);
+      if (config.mevProtection !== undefined) setMevProtection(config.mevProtection);
+      if (config.positionSizingType) setPositionSizingType(config.positionSizingType);
+      if (config.maxPositionSize !== undefined) setMaxPositionSize(config.maxPositionSize.toString());
+      if (config.minPositionSize !== undefined) setMinPositionSize(config.minPositionSize.toString());
+      if (config.maxDailyLoss !== undefined) setMaxDailyLoss(config.maxDailyLoss.toString());
+      if (config.maxDailyTrades !== undefined) setMaxDailyTrades(config.maxDailyTrades.toString());
+      if (config.maxOpenPositions !== undefined) setMaxOpenPositions(config.maxOpenPositions.toString());
+      if (config.cooldownPeriod !== undefined) setCooldownPeriod(config.cooldownPeriod.toString());
+      if (config.flashLoanDetection !== undefined) setFlashLoanDetection(config.flashLoanDetection);
+      if (config.targetToken) setTokenAddress(config.targetToken);
+      if (config.autoSweepEnabled !== undefined) setAutoSweepEnabled(config.autoSweepEnabled);
+      if (config.sweepChains) {
+        const chains = config.sweepChains.split(',').filter(Boolean);
+        setSweepChains(chains);
+      }
+      if (config.sweepInterval !== undefined) setSweepInterval(config.sweepInterval.toString());
+      setUserModifiedSettings(false);
+    });
+  }, []);
+
+  // Fetch fresh config from database and sync state
+  const fetchAndSyncConfig = useCallback(async () => {
+    try {
+      const response = await fetch('/api/bot');
+      const data = await response.json();
+      if (data.success && data.data) {
+        setUserModifiedSettings(false);
+        prevConfigIdRef.current = null;
+        syncStateFromConfig(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch config:', error);
+    }
+  }, [syncStateFromConfig]);
+
+  // Initial load - fetch config on mount
+  useEffect(() => {
+    fetchAndSyncConfig();
+  }, [fetchAndSyncConfig]);
+
   // Manual sync from botConfig - only when user clicks "Sync from Config" or on initial load
   const handleSyncFromConfig = useCallback(() => {
     if (!botConfig) return;
-    
-    queueMicrotask(() => {
-      if (botConfig.network) setSelectedChain(botConfig.network);
-      if (botConfig.exchange) setSelectedDex(botConfig.exchange);
-      if (botConfig.baseToken) setSelectedBaseToken(botConfig.baseToken);
-      if (botConfig.buyTriggerType) {
-        // Handle both comma-separated and single value
-        const types = botConfig.buyTriggerType.split(',').filter(Boolean);
-        setBuyTriggerTypes(types.length > 0 ? types : ['liquidity_add']);
-      }
-      if (botConfig.buyTriggerValue) setBuyTriggerValue(botConfig.buyTriggerValue.toString());
-      if (botConfig.buyAmount) setBuyAmount(botConfig.buyAmount.toString());
-      if (botConfig.buySlippage) setBuySlippage(botConfig.buySlippage.toString());
-      if (botConfig.buyGasPrice) setBuyGasPrice(botConfig.buyGasPrice.toString());
-      if (botConfig.buyGasLimit) setBuyGasLimit(botConfig.buyGasLimit.toString());
-      if (botConfig.minLiquidity) setMinLiquidity(botConfig.minLiquidity.toString());
-      if (botConfig.maxBuyPrice) setMaxBuyPrice(botConfig.maxBuyPrice.toString());
-      if (botConfig.sellSlippage) setSellSlippage(botConfig.sellSlippage.toString());
-      if (botConfig.sellGasPrice) setSellGasPrice(botConfig.sellGasPrice.toString());
-      if (botConfig.sellGasLimit) setSellGasLimit(botConfig.sellGasLimit.toString());
-      if (botConfig.takeProfitEnabled !== undefined) setTakeProfitEnabled(botConfig.takeProfitEnabled);
-      if (botConfig.takeProfitPercent) setTakeProfitPercent(botConfig.takeProfitPercent.toString());
-      if (botConfig.takeProfitAmount) setTakeProfitAmount(botConfig.takeProfitAmount.toString());
-      if (botConfig.stopLossEnabled !== undefined) setStopLossEnabled(botConfig.stopLossEnabled);
-      if (botConfig.stopLossPercent) setStopLossPercent(botConfig.stopLossPercent.toString());
-      if (botConfig.stopLossType) setStopLossType(botConfig.stopLossType);
-      if (botConfig.trailingStopEnabled !== undefined) setTrailingStopEnabled(botConfig.trailingStopEnabled);
-      if (botConfig.trailingStopPercent) setTrailingStopPercent(botConfig.trailingStopPercent.toString());
-      if (botConfig.trailingStopActivation) setTrailingStopActivation(botConfig.trailingStopActivation.toString());
-      if (botConfig.autoApprove !== undefined) setAutoApprove(botConfig.autoApprove);
-      if (botConfig.mevProtection !== undefined) setMevProtection(botConfig.mevProtection);
-      if (botConfig.targetToken) setTokenAddress(botConfig.targetToken);
-      // Auto-Sweep settings
-      if (botConfig.autoSweepEnabled !== undefined) setAutoSweepEnabled(botConfig.autoSweepEnabled);
-      if (botConfig.sweepChains) {
-        const chains = botConfig.sweepChains.split(',').filter(Boolean);
-        setSweepChains(chains);
-      }
-      if (botConfig.sweepInterval) setSweepInterval(botConfig.sweepInterval.toString());
-      setUserModifiedSettings(false);
-    });
-  }, [botConfig]);
-  
-  // Initial sync from botConfig on first load only
+    syncStateFromConfig(botConfig);
+  }, [botConfig, syncStateFromConfig]);
+
+  // Initial sync from botConfig on first load only (backup method)
   useEffect(() => {
     if (botConfig && !prevConfigIdRef.current && !userModifiedSettings) {
       prevConfigIdRef.current = botConfig.id;
       handleSyncFromConfig();
     }
   }, [botConfig?.id, userModifiedSettings, handleSyncFromConfig]);
+
+  // Re-sync settings when page becomes visible again (handles tab switching and navigation)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Clear any pending save to prevent conflicts
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        // Fetch and sync from database
+        fetchAndSyncConfig();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchAndSyncConfig]);
 
   // Get available DEXes for selected chain from chain config
   const getAvailableDexes = useCallback((chain: string) => {
@@ -759,7 +943,9 @@ export function SniperPanel() {
               value={buyAmount}
               onChange={(e) => {
                 setBuyAmount(e.target.value);
-                markModifiedAndSave();
+              }}
+              onBlur={() => {
+                handleNumericBlur(buyAmount, setBuyAmount, '0.1', 0.001);
               }}
               className="min-h-[44px] sm:min-h-0"
             />
@@ -775,7 +961,9 @@ export function SniperPanel() {
               value={minLiquidity}
               onChange={(e) => {
                 setMinLiquidity(e.target.value);
-                markModifiedAndSave();
+              }}
+              onBlur={() => {
+                handleNumericBlur(minLiquidity, setMinLiquidity, '100', 0);
               }}
               className="min-h-[44px] sm:min-h-0"
             />
@@ -917,15 +1105,9 @@ export function SniperPanel() {
                       value={buyTriggerValue}
                       onChange={(e) => {
                         setBuyTriggerValue(e.target.value);
-                        markModifiedAndSave();
                       }}
                       onBlur={() => {
-                        const num = parseFloat(buyTriggerValue);
-                        if (isNaN(num) || num < 0.5) {
-                          setBuyTriggerValue('0.5');
-                        } else if (num > 50) {
-                          setBuyTriggerValue('50');
-                        }
+                        handleNumericBlur(buyTriggerValue, setBuyTriggerValue, '5', 0.5, 50);
                       }}
                       className="w-16 h-8 text-center text-xs"
                     />
@@ -957,7 +1139,9 @@ export function SniperPanel() {
                   value={buySlippage}
                   onChange={(e) => {
                     setBuySlippage(e.target.value);
-                    markModifiedAndSave();
+                  }}
+                  onBlur={() => {
+                    handleNumericBlur(buySlippage, setBuySlippage, '5', 0, 100);
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -969,7 +1153,9 @@ export function SniperPanel() {
                   value={buyGasPrice}
                   onChange={(e) => {
                     setBuyGasPrice(e.target.value);
-                    markModifiedAndSave();
+                  }}
+                  onBlur={() => {
+                    handleNumericBlur(buyGasPrice, setBuyGasPrice, '0', 0);
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -982,7 +1168,9 @@ export function SniperPanel() {
                 value={buyGasLimit}
                 onChange={(e) => {
                   setBuyGasLimit(e.target.value);
-                  markModifiedAndSave();
+                }}
+                onBlur={() => {
+                  handleNumericBlur(buyGasLimit, setBuyGasLimit, '250000', 21000);
                 }}
                 className="min-h-[44px] sm:min-h-0 sm:h-8"
               />
@@ -1009,7 +1197,9 @@ export function SniperPanel() {
                   value={sellSlippage}
                   onChange={(e) => {
                     setSellSlippage(e.target.value);
-                    markModifiedAndSave();
+                  }}
+                  onBlur={() => {
+                    handleNumericBlur(sellSlippage, setSellSlippage, '5', 0, 100);
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -1021,7 +1211,9 @@ export function SniperPanel() {
                   value={sellGasPrice}
                   onChange={(e) => {
                     setSellGasPrice(e.target.value);
-                    markModifiedAndSave();
+                  }}
+                  onBlur={() => {
+                    handleNumericBlur(sellGasPrice, setSellGasPrice, '0', 0);
                   }}
                   className="min-h-[44px] sm:min-h-0 sm:h-8"
                 />
@@ -1056,7 +1248,9 @@ export function SniperPanel() {
                         value={takeProfitPercent}
                         onChange={(e) => {
                           setTakeProfitPercent(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(takeProfitPercent, setTakeProfitPercent, '50', 0);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1070,7 +1264,9 @@ export function SniperPanel() {
                         value={takeProfitAmount}
                         onChange={(e) => {
                           setTakeProfitAmount(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(takeProfitAmount, setTakeProfitAmount, '100', 0, 100);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="100"
@@ -1125,7 +1321,9 @@ export function SniperPanel() {
                         value={stopLossPercent}
                         onChange={(e) => {
                           setStopLossPercent(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(stopLossPercent, setStopLossPercent, '10', 0);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1196,7 +1394,9 @@ export function SniperPanel() {
                         value={trailingStopPercent}
                         onChange={(e) => {
                           setTrailingStopPercent(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(trailingStopPercent, setTrailingStopPercent, '5', 0);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1210,7 +1410,9 @@ export function SniperPanel() {
                         value={trailingStopActivation}
                         onChange={(e) => {
                           setTrailingStopActivation(e.target.value);
-                          markModifiedAndSave();
+                        }}
+                        onBlur={() => {
+                          handleNumericBlur(trailingStopActivation, setTrailingStopActivation, '10', 0);
                         }}
                         className="min-h-[44px] sm:min-h-0 sm:h-8"
                         placeholder="Enter %"
@@ -1248,12 +1450,112 @@ export function SniperPanel() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Position Sizing */}
+            <div className="space-y-2">
+              <Label className="text-xs">Position Sizing</Label>
+              <Select value={positionSizingType} onValueChange={(value) => { setPositionSizingType(value); markModifiedAndSave(); }}>
+                <SelectTrigger className="min-h-[44px] sm:min-h-0 sm:h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed">Fixed Amount</SelectItem>
+                  <SelectItem value="percentage">Portfolio %</SelectItem>
+                  <SelectItem value="kelly">Kelly Criterion</SelectItem>
+                  <SelectItem value="risk_parity">Risk Parity</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Max Position</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={maxPositionSize}
+                  onChange={(e) => { setMaxPositionSize(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(maxPositionSize, setMaxPositionSize, '1.0', 0.001); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Min Position</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={minPositionSize}
+                  onChange={(e) => { setMinPositionSize(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(minPositionSize, setMinPositionSize, '0.01', 0); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Max Daily Loss</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={maxDailyLoss}
+                  onChange={(e) => { setMaxDailyLoss(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(maxDailyLoss, setMaxDailyLoss, '0.5', 0); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Max Daily Trades</Label>
+                <Input
+                  type="number"
+                  value={maxDailyTrades}
+                  onChange={(e) => { setMaxDailyTrades(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(maxDailyTrades, setMaxDailyTrades, '10', 1, 1000); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Max Positions</Label>
+                <Input
+                  type="number"
+                  value={maxOpenPositions}
+                  onChange={(e) => { setMaxOpenPositions(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(maxOpenPositions, setMaxOpenPositions, '5', 1, 100); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Cooldown (sec)</Label>
+                <Input
+                  type="number"
+                  value={cooldownPeriod}
+                  onChange={(e) => { setCooldownPeriod(e.target.value); }}
+                  onBlur={() => { handleNumericBlur(cooldownPeriod, setCooldownPeriod, '300', 0); }}
+                  className="min-h-[44px] sm:min-h-0 sm:h-8"
+                />
+              </div>
+            </div>
+            
+            <Separator />
+            
             <div className="flex items-center justify-between py-1">
               <Label className="text-xs sm:text-sm">MEV Protection</Label>
               <Switch 
                 checked={mevProtection} 
                 onCheckedChange={(checked) => {
                   setMevProtection(checked);
+                  markModifiedAndSave();
+                }} 
+              />
+            </div>
+            <div className="flex items-center justify-between py-1">
+              <Label className="text-xs sm:text-sm">Flash Loan Detection</Label>
+              <Switch 
+                checked={flashLoanDetection} 
+                onCheckedChange={(checked) => {
+                  setFlashLoanDetection(checked);
                   markModifiedAndSave();
                 }} 
               />
@@ -1324,7 +1626,9 @@ export function SniperPanel() {
                     value={sweepInterval}
                     onChange={(e) => {
                       setSweepInterval(e.target.value);
-                      markModifiedAndSave();
+                    }}
+                    onBlur={() => {
+                      handleNumericBlur(sweepInterval, setSweepInterval, '30', 5, 3600);
                     }}
                     className="min-h-[44px] sm:min-h-0 sm:h-8"
                   />
