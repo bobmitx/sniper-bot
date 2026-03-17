@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAccount, useBalance, useDisconnect, useSwitchChain } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,39 @@ export function WalletConnection() {
   const [copied, setCopied] = useState(false);
   const [showPrivateKeyWarning, setShowPrivateKeyWarning] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced save function for wallet settings
+  const saveSettingsToDatabase = useCallback(async (updates: Record<string, unknown>) => {
+    try {
+      const response = await fetch('/api/bot', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (response.ok) {
+        console.log('✅ Wallet settings saved to database');
+      }
+    } catch (error) {
+      console.error('Failed to save wallet settings:', error);
+    }
+  }, []);
+
+  // Debounced save - saves 1 second after last change
+  const debouncedSave = useCallback((updates: Record<string, unknown>) => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      saveSettingsToDatabase(updates);
+    }, 1000);
+  }, [saveSettingsToDatabase]);
+
+  // Update bot config and persist to database
+  const updateAndSaveConfig = useCallback((updates: Record<string, unknown>) => {
+    setBotConfig((prev) => prev ? { ...prev, ...updates } : prev);
+    debouncedSave(updates);
+  }, [setBotConfig, debouncedSave]);
 
   // Update bot config when chain changes
   useEffect(() => {
@@ -256,9 +289,7 @@ export function WalletConnection() {
               <Switch
                 checked={botConfig?.autoApprove || false}
                 onCheckedChange={(checked) => {
-                  if (botConfig) {
-                    setBotConfig({ ...botConfig, autoApprove: checked });
-                  }
+                  updateAndSaveConfig({ autoApprove: checked });
                 }}
                 className="scale-110 sm:scale-100"
               />
@@ -279,9 +310,7 @@ export function WalletConnection() {
               <Switch
                 checked={botConfig?.mevProtection || false}
                 onCheckedChange={(checked) => {
-                  if (botConfig) {
-                    setBotConfig({ ...botConfig, mevProtection: checked });
-                  }
+                  updateAndSaveConfig({ mevProtection: checked });
                 }}
                 className="scale-110 sm:scale-100"
               />
@@ -302,9 +331,7 @@ export function WalletConnection() {
               <Switch
                 checked={botConfig?.flashLoanDetection || false}
                 onCheckedChange={(checked) => {
-                  if (botConfig) {
-                    setBotConfig({ ...botConfig, flashLoanDetection: checked });
-                  }
+                  updateAndSaveConfig({ flashLoanDetection: checked });
                 }}
                 className="scale-110 sm:scale-100"
               />
