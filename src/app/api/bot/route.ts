@@ -136,11 +136,18 @@ export async function PUT(request: NextRequest) {
     }
     
     // Filter to only allowed fields (additional security layer)
+    // NOTE: Some fields are temporarily filtered due to Turbopack cache issues
+    // Last updated: force refresh
+    const TURBOPACK_PROBLEM_FIELDS = new Set(['minLiquidity', 'autoSweepEnabled', 'sweepChains', 'sweepInterval']);
     const cleanBody: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(validation.data)) {
       if (ALLOWED_CONFIG_FIELDS.has(key) && value !== undefined && value !== null) {
         if (typeof value === 'number' && isNaN(value)) {
           continue; // Skip NaN values
+        }
+        // Skip fields that Turbopack cache doesn't recognize
+        if (TURBOPACK_PROBLEM_FIELDS.has(key)) {
+          continue;
         }
         cleanBody[key] = value;
       }
