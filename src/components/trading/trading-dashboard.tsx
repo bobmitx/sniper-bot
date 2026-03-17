@@ -980,9 +980,9 @@ export function TradingDashboard() {
                                     </div>
                                   ) : tokenSearchResults.length > 0 ? (
                                     <div className="space-y-1">
-                                      {tokenSearchResults.map((token) => (
+                                      {tokenSearchResults.map((token, index) => (
                                         <button
-                                          key={token.address}
+                                          key={`${token.address}-${index}`}
                                           className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-muted text-left"
                                           onClick={() => {
                                             updateBotConfig({ 
@@ -1059,9 +1059,9 @@ export function TradingDashboard() {
                       <div className="space-y-2">
                         <Label className="text-xs text-muted-foreground">Popular tokens on {chainConfigs[botConfig.network as ChainName]?.name || botConfig.network}</Label>
                         <div className="flex flex-wrap gap-1">
-                          {getPopularTokensForChain(botConfig.network as ChainName).slice(0, 6).map((token) => (
+                          {getPopularTokensForChain(botConfig.network as ChainName).slice(0, 6).map((token, index) => (
                             <Button
-                              key={token.address}
+                              key={`${token.symbol}-${token.address}-${index}`}
                               variant="outline"
                               size="sm"
                               className="h-7 text-xs"
