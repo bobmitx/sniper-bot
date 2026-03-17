@@ -22,7 +22,7 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" className="h-9 w-9">
+      <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-9 sm:w-9">
         <div className="w-4 h-4 flex items-center justify-center">
           <Sun className="h-4 w-4" />
         </div>
@@ -33,7 +33,7 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9">
+        <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-9 sm:w-9">
           <div className="relative w-4 h-4 flex items-center justify-center">
             <Sun className="h-4 w-4 absolute transition-all dark:-rotate-90 dark:scale-0 rotate-0 scale-100" />
             <Moon className="h-4 w-4 absolute transition-all dark:rotate-0 dark:scale-100 rotate-90 scale-0" />
@@ -79,7 +79,7 @@ export function ThemeToggleCompact() {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" className="h-9 w-9">
+      <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-9 sm:w-9">
         <div className="w-4 h-4 flex items-center justify-center">
           <Sun className="h-4 w-4" />
         </div>
@@ -96,7 +96,7 @@ export function ThemeToggleCompact() {
       variant="ghost" 
       size="icon" 
       onClick={toggleTheme}
-      className="h-9 w-9"
+      className="h-11 w-11 sm:h-9 sm:w-9"
     >
       <div className="relative w-4 h-4 flex items-center justify-center">
         <Sun className="h-4 w-4 absolute transition-all dark:-rotate-90 dark:scale-0 rotate-0 scale-100" />
