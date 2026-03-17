@@ -1,0 +1,17 @@
+[sniper-service] Installing dependencies...
+bun install v1.3.10 (30e609e0)
+Resolving dependencies
+Resolved, downloaded and extracted [70]
+Saved lockfile
+
++ socket.io@4.8.3
++ viem@2.47.4
+
+34 packages installed [1.91s]
+[sniper-service] Running bun run dev...
+$ bun --hot index.ts
+🎯 Sniper Service running on port 3004
+🎯 Sniper Service running on port 3004
+🛑 Shutting down sniper service...
+🛑 Shutting down sniper service...
+✅ Sniper service shut down
