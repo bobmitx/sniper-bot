@@ -256,63 +256,85 @@ export function SniperPanel() {
     });
     markModifiedAndSave();
   }, [markModifiedAndSave]);
-  
+
+  // Helper to sync state from a config object
+  const syncStateFromConfig = useCallback((config: typeof botConfig) => {
+    if (!config) return;
+    queueMicrotask(() => {
+      if (config.network) setSelectedChain(config.network);
+      if (config.exchange) setSelectedDex(config.exchange);
+      if (config.baseToken) setSelectedBaseToken(config.baseToken);
+      if (config.buyTriggerType) {
+        const types = config.buyTriggerType.split(',').filter(Boolean);
+        setBuyTriggerTypes(types.length > 0 ? types : ['liquidity_add']);
+      }
+      if (config.buyTriggerValue !== undefined) setBuyTriggerValue(config.buyTriggerValue.toString());
+      if (config.buyAmount !== undefined) setBuyAmount(config.buyAmount.toString());
+      if (config.buySlippage !== undefined) setBuySlippage(config.buySlippage.toString());
+      if (config.buyGasPrice !== undefined) setBuyGasPrice(config.buyGasPrice.toString());
+      if (config.buyGasLimit !== undefined) setBuyGasLimit(config.buyGasLimit.toString());
+      if (config.minLiquidity !== undefined) setMinLiquidity(config.minLiquidity.toString());
+      if (config.maxBuyPrice) setMaxBuyPrice(config.maxBuyPrice.toString());
+      if (config.sellSlippage !== undefined) setSellSlippage(config.sellSlippage.toString());
+      if (config.sellGasPrice !== undefined) setSellGasPrice(config.sellGasPrice.toString());
+      if (config.sellGasLimit !== undefined) setSellGasLimit(config.sellGasLimit.toString());
+      if (config.takeProfitEnabled !== undefined) setTakeProfitEnabled(config.takeProfitEnabled);
+      if (config.takeProfitPercent !== undefined) setTakeProfitPercent(config.takeProfitPercent.toString());
+      if (config.takeProfitAmount !== undefined) setTakeProfitAmount(config.takeProfitAmount.toString());
+      if (config.stopLossEnabled !== undefined) setStopLossEnabled(config.stopLossEnabled);
+      if (config.stopLossPercent !== undefined) setStopLossPercent(config.stopLossPercent.toString());
+      if (config.stopLossType) setStopLossType(config.stopLossType);
+      if (config.trailingStopEnabled !== undefined) setTrailingStopEnabled(config.trailingStopEnabled);
+      if (config.trailingStopPercent !== undefined) setTrailingStopPercent(config.trailingStopPercent.toString());
+      if (config.trailingStopActivation !== undefined) setTrailingStopActivation(config.trailingStopActivation.toString());
+      if (config.autoApprove !== undefined) setAutoApprove(config.autoApprove);
+      if (config.mevProtection !== undefined) setMevProtection(config.mevProtection);
+      if (config.positionSizingType) setPositionSizingType(config.positionSizingType);
+      if (config.maxPositionSize !== undefined) setMaxPositionSize(config.maxPositionSize.toString());
+      if (config.minPositionSize !== undefined) setMinPositionSize(config.minPositionSize.toString());
+      if (config.maxDailyLoss !== undefined) setMaxDailyLoss(config.maxDailyLoss.toString());
+      if (config.maxDailyTrades !== undefined) setMaxDailyTrades(config.maxDailyTrades.toString());
+      if (config.maxOpenPositions !== undefined) setMaxOpenPositions(config.maxOpenPositions.toString());
+      if (config.cooldownPeriod !== undefined) setCooldownPeriod(config.cooldownPeriod.toString());
+      if (config.flashLoanDetection !== undefined) setFlashLoanDetection(config.flashLoanDetection);
+      if (config.targetToken) setTokenAddress(config.targetToken);
+      if (config.autoSweepEnabled !== undefined) setAutoSweepEnabled(config.autoSweepEnabled);
+      if (config.sweepChains) {
+        const chains = config.sweepChains.split(',').filter(Boolean);
+        setSweepChains(chains);
+      }
+      if (config.sweepInterval !== undefined) setSweepInterval(config.sweepInterval.toString());
+      setUserModifiedSettings(false);
+    });
+  }, []);
+
+  // Fetch fresh config from database and sync state
+  const fetchAndSyncConfig = useCallback(async () => {
+    try {
+      const response = await fetch('/api/bot');
+      const data = await response.json();
+      if (data.success && data.data) {
+        setUserModifiedSettings(false);
+        prevConfigIdRef.current = null;
+        syncStateFromConfig(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch config:', error);
+    }
+  }, [syncStateFromConfig]);
+
+  // Initial load - fetch config on mount
+  useEffect(() => {
+    fetchAndSyncConfig();
+  }, [fetchAndSyncConfig]);
+
   // Manual sync from botConfig - only when user clicks "Sync from Config" or on initial load
   const handleSyncFromConfig = useCallback(() => {
     if (!botConfig) return;
-    
-    queueMicrotask(() => {
-      if (botConfig.network) setSelectedChain(botConfig.network);
-      if (botConfig.exchange) setSelectedDex(botConfig.exchange);
-      if (botConfig.baseToken) setSelectedBaseToken(botConfig.baseToken);
-      if (botConfig.buyTriggerType) {
-        // Handle both comma-separated and single value
-        const types = botConfig.buyTriggerType.split(',').filter(Boolean);
-        setBuyTriggerTypes(types.length > 0 ? types : ['liquidity_add']);
-      }
-      if (botConfig.buyTriggerValue) setBuyTriggerValue(botConfig.buyTriggerValue.toString());
-      if (botConfig.buyAmount) setBuyAmount(botConfig.buyAmount.toString());
-      if (botConfig.buySlippage) setBuySlippage(botConfig.buySlippage.toString());
-      if (botConfig.buyGasPrice) setBuyGasPrice(botConfig.buyGasPrice.toString());
-      if (botConfig.buyGasLimit) setBuyGasLimit(botConfig.buyGasLimit.toString());
-      if (botConfig.minLiquidity) setMinLiquidity(botConfig.minLiquidity.toString());
-      if (botConfig.maxBuyPrice) setMaxBuyPrice(botConfig.maxBuyPrice.toString());
-      if (botConfig.sellSlippage) setSellSlippage(botConfig.sellSlippage.toString());
-      if (botConfig.sellGasPrice) setSellGasPrice(botConfig.sellGasPrice.toString());
-      if (botConfig.sellGasLimit) setSellGasLimit(botConfig.sellGasLimit.toString());
-      if (botConfig.takeProfitEnabled !== undefined) setTakeProfitEnabled(botConfig.takeProfitEnabled);
-      if (botConfig.takeProfitPercent) setTakeProfitPercent(botConfig.takeProfitPercent.toString());
-      if (botConfig.takeProfitAmount) setTakeProfitAmount(botConfig.takeProfitAmount.toString());
-      if (botConfig.stopLossEnabled !== undefined) setStopLossEnabled(botConfig.stopLossEnabled);
-      if (botConfig.stopLossPercent) setStopLossPercent(botConfig.stopLossPercent.toString());
-      if (botConfig.stopLossType) setStopLossType(botConfig.stopLossType);
-      if (botConfig.trailingStopEnabled !== undefined) setTrailingStopEnabled(botConfig.trailingStopEnabled);
-      if (botConfig.trailingStopPercent) setTrailingStopPercent(botConfig.trailingStopPercent.toString());
-      if (botConfig.trailingStopActivation) setTrailingStopActivation(botConfig.trailingStopActivation.toString());
-      if (botConfig.autoApprove !== undefined) setAutoApprove(botConfig.autoApprove);
-      if (botConfig.mevProtection !== undefined) setMevProtection(botConfig.mevProtection);
-      // Risk Management settings
-      if (botConfig.positionSizingType) setPositionSizingType(botConfig.positionSizingType);
-      if (botConfig.maxPositionSize) setMaxPositionSize(botConfig.maxPositionSize.toString());
-      if (botConfig.minPositionSize) setMinPositionSize(botConfig.minPositionSize.toString());
-      if (botConfig.maxDailyLoss) setMaxDailyLoss(botConfig.maxDailyLoss.toString());
-      if (botConfig.maxDailyTrades) setMaxDailyTrades(botConfig.maxDailyTrades.toString());
-      if (botConfig.maxOpenPositions) setMaxOpenPositions(botConfig.maxOpenPositions.toString());
-      if (botConfig.cooldownPeriod) setCooldownPeriod(botConfig.cooldownPeriod.toString());
-      if (botConfig.flashLoanDetection !== undefined) setFlashLoanDetection(botConfig.flashLoanDetection);
-      if (botConfig.targetToken) setTokenAddress(botConfig.targetToken);
-      // Auto-Sweep settings
-      if (botConfig.autoSweepEnabled !== undefined) setAutoSweepEnabled(botConfig.autoSweepEnabled);
-      if (botConfig.sweepChains) {
-        const chains = botConfig.sweepChains.split(',').filter(Boolean);
-        setSweepChains(chains);
-      }
-      if (botConfig.sweepInterval) setSweepInterval(botConfig.sweepInterval.toString());
-      setUserModifiedSettings(false);
-    });
-  }, [botConfig]);
-  
-  // Initial sync from botConfig on first load only
+    syncStateFromConfig(botConfig);
+  }, [botConfig, syncStateFromConfig]);
+
+  // Initial sync from botConfig on first load only (backup method)
   useEffect(() => {
     if (botConfig && !prevConfigIdRef.current && !userModifiedSettings) {
       prevConfigIdRef.current = botConfig.id;
@@ -323,11 +345,8 @@ export function SniperPanel() {
   // Re-sync settings when page becomes visible again (handles tab switching and navigation)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && botConfig) {
-        // Reset user modified flag and re-sync from the latest config
-        setUserModifiedSettings(false);
-        prevConfigIdRef.current = null; // Reset to allow re-sync
-        handleSyncFromConfig();
+      if (document.visibilityState === 'visible') {
+        fetchAndSyncConfig();
       }
     };
 
@@ -335,7 +354,7 @@ export function SniperPanel() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [botConfig, handleSyncFromConfig]);
+  }, [fetchAndSyncConfig]);
 
   // Get available DEXes for selected chain from chain config
   const getAvailableDexes = useCallback((chain: string) => {
