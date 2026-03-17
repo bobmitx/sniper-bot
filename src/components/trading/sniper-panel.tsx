@@ -240,9 +240,8 @@ export function SniperPanel() {
     if (min !== undefined && finalValue < min) finalValue = min;
     if (max !== undefined && finalValue > max) finalValue = max;
     setter(finalValue.toString());
-    if (finalValue !== num) {
-      markModifiedAndSave();
-    }
+    // Always save on blur, regardless of whether value was corrected
+    markModifiedAndSave();
   }, [markModifiedAndSave]);
 
   // Toggle trigger type selection (multi-select)
@@ -320,6 +319,23 @@ export function SniperPanel() {
       handleSyncFromConfig();
     }
   }, [botConfig?.id, userModifiedSettings, handleSyncFromConfig]);
+
+  // Re-sync settings when page becomes visible again (handles tab switching and navigation)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && botConfig) {
+        // Reset user modified flag and re-sync from the latest config
+        setUserModifiedSettings(false);
+        prevConfigIdRef.current = null; // Reset to allow re-sync
+        handleSyncFromConfig();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [botConfig, handleSyncFromConfig]);
 
   // Get available DEXes for selected chain from chain config
   const getAvailableDexes = useCallback((chain: string) => {

@@ -439,6 +439,21 @@ export function TradingDashboard() {
     fetchPositions();
   }, [fetchBotConfig, fetchTrades, fetchPositions]);
 
+  // Refetch data when page becomes visible (handles tab switching and navigation)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Refetch the latest config from the server when page becomes visible
+        fetchBotConfig();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchBotConfig]);
+
   // Update positions with current prices
   useEffect(() => {
     positions.forEach((position) => {
