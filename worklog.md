@@ -665,3 +665,44 @@ Stage Summary:
 - Header badges properly responsive ✅
 - Switch components have touch-friendly targets ✅
 - Full mobile/tablet/desktop support ✅
+
+---
+Task ID: 18
+Agent: Main Agent
+Task: Audit and fix settings persistence across all pages
+
+Work Log:
+- Conducted comprehensive audit of settings persistence mechanism
+- Found critical issues where settings were NOT being saved to database
+
+**Issues Found and Fixed:**
+
+1. **Wallet Connection Settings (wallet-connection.tsx)**:
+   - Problem: autoApprove, mevProtection, flashLoanDetection only updated local state
+   - Fix: Added debounced save function to persist to database via API
+
+2. **API Route Whitelist (api/bot/route.ts)**:
+   - Problem: minLiquidity and maxBuyPrice not in ALLOWED_CONFIG_FIELDS
+   - Fix: Added both fields to whitelist
+
+3. **Validation Schema (lib/validation.ts)**:
+   - Problem: minLiquidity and maxBuyPrice not in validation schema
+   - Fix: Added both fields to botConfigUpdateSchema
+
+4. **Sniper Panel (sniper-panel.tsx)**:
+   - Problem: minLiquidity and maxBuyPrice not in saveSettingsToDatabase function
+   - Fix: Added both fields to save function and sync function
+
+**Persistence Flow Verified:**
+1. User changes setting → local state updates
+2. Debounced save triggers (1-2 second delay)
+3. API PUT call saves to database
+4. On page load, settings load from database
+5. All settings persist until changed by user
+
+Stage Summary:
+- All user settings now persist correctly ✅
+- Wallet settings save with debounced API call ✅
+- Sniper panel settings save with all fields ✅
+- API whitelist includes all fields ✅
+- Validation schema includes all fields ✅
