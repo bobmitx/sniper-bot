@@ -4,7 +4,7 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Prisma client with auto-sweep fields support
+// Prisma client - updated to force cache refresh
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({

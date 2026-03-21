@@ -34,6 +34,7 @@ import {
 import { chainIdToName, nativeCurrencySymbols, nameToChainId } from '@/components/providers';
 import { useTradingStore } from '@/store/trading-store';
 import { formatUnits } from 'viem';
+import { formatAmount } from '@/lib/format';
 
 export function WalletConnection() {
   const { address, isConnected, chain } = useAccount();
@@ -80,15 +81,15 @@ export function WalletConnection() {
     debouncedSave(updates);
   }, [setBotConfig, debouncedSave]);
 
-  // Update bot config when chain changes
+  // Update bot config when chain changes - persist to database
   useEffect(() => {
     if (chain && botConfig) {
       const chainName = chainIdToName[chain.id];
       if (chainName && chainName !== botConfig.network) {
-        setBotConfig({ ...botConfig, network: chainName });
+        updateAndSaveConfig({ network: chainName });
       }
     }
-  }, [chain, botConfig, setBotConfig]);
+  }, [chain, botConfig, updateAndSaveConfig]);
 
   const copyAddress = async () => {
     if (address) {
@@ -239,7 +240,7 @@ export function WalletConnection() {
           <div className="text-left sm:text-right w-full sm:w-auto">
             <p className="text-sm text-muted-foreground">Balance</p>
             <p className="font-bold text-base sm:text-lg">
-              {balance ? parseFloat(formatUnits(balance.value, balance.decimals)).toFixed(4) : '0.0000'} 
+              {balance ? formatAmount(parseFloat(formatUnits(balance.value, balance.decimals)), { decimals: 4 }) : '0'} 
               {balance?.symbol || chain ? ` ${nativeCurrencySymbols[chain?.id || 1]}` : ''}
             </p>
           </div>

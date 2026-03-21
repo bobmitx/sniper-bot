@@ -41,6 +41,7 @@ import {
   ChevronDown,
   AlertCircle,
 } from 'lucide-react';
+import { formatUsd, formatAmount } from '@/lib/format';
 
 export function SniperPanel() {
   const {
@@ -794,7 +795,7 @@ export function SniperPanel() {
                   <div className="mt-3 flex items-center gap-2 text-xs sm:text-sm text-yellow-500">
                     <AlertCircle className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">
-                      Insufficient balance on {selectedChain}. Available: {availableBalance.toFixed(4)} {currentBalance?.symbol || 'ETH'}
+                      Insufficient balance on {selectedChain}. Available: {formatAmount(availableBalance, { decimals: 4 })} {currentBalance?.symbol || 'ETH'}
                     </span>
                   </div>
                 );
@@ -901,7 +902,7 @@ export function SniperPanel() {
             </div>
             <div className="space-y-2">
               <Label className="text-sm">DEX</Label>
-              <Select value={selectedDex} onValueChange={setSelectedDex}>
+              <Select value={selectedDex} onValueChange={(value) => { setSelectedDex(value); markModifiedAndSave(); }}>
                 <SelectTrigger className="min-h-[44px] sm:min-h-0">
                   <SelectValue />
                 </SelectTrigger>
@@ -919,7 +920,7 @@ export function SniperPanel() {
           {/* Base Token */}
           <div className="space-y-2">
             <Label className="text-sm">Base Token</Label>
-            <Select value={selectedBaseToken} onValueChange={setSelectedBaseToken}>
+            <Select value={selectedBaseToken} onValueChange={(value) => { setSelectedBaseToken(value); markModifiedAndSave(); }}>
               <SelectTrigger className="min-h-[44px] sm:min-h-0">
                 <SelectValue />
               </SelectTrigger>
@@ -1016,7 +1017,7 @@ export function SniperPanel() {
               <AlertDescription>
                 <div className="text-sm">
                   <p>Pair: {liquidityInfo.pairAddress.slice(0, 10)}...</p>
-                  <p>Liquidity: ${liquidityInfo.liquidityUsd.toFixed(2)}</p>
+                  <p>Liquidity: {formatUsd(liquidityInfo.liquidityUsd)}</p>
                 </div>
               </AlertDescription>
             </Alert>
