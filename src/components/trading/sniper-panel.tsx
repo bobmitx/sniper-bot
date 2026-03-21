@@ -60,7 +60,7 @@ export function SniperPanel() {
   } = useSniperService();
 
   // Get botConfig from trading store for synchronization
-  const { botConfig } = useTradingStore();
+  const { botConfig, setBotConfig } = useTradingStore();
 
   // Wallet connection and balances
   const { isConnected: walletConnected, address } = useAccount();
@@ -274,7 +274,12 @@ export function SniperPanel() {
       });
       
       if (response.ok) {
-        console.log('✅ Settings saved to database');
+        const data = await response.json();
+        if (data.success && data.data) {
+          // Update the Zustand store so other components see the changes
+          setBotConfig(data.data);
+          console.log('✅ Settings saved to database');
+        }
       } else {
         console.error('❌ Failed to save settings:', await response.text());
       }
@@ -283,7 +288,7 @@ export function SniperPanel() {
     } finally {
       setIsSaving(false);
     }
-  }, [botConfig?.id]);
+  }, [botConfig?.id, setBotConfig]);
   
   // Debounced save - saves 2 seconds after last change
   const debouncedSave = useCallback(() => {

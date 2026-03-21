@@ -20,6 +20,8 @@ export interface BotConfig {
   buySlippage: number;
   buyGasPrice: number;
   buyGasLimit: number;
+  minLiquidity: number;
+  maxBuyPrice: number | null;
   sellTriggerType: string;
   sellTriggerValue: number;
   sellSlippage: number;
