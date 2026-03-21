@@ -94,6 +94,7 @@ import {
 import { SniperPanel } from '@/components/trading/sniper-panel';
 import { DocumentationPanel } from '@/components/trading/documentation-panel';
 import { ThemeToggleCompact } from '@/components/theme-toggle';
+import { formatPrice, formatAmount, formatUsd, formatPercent, formatCompact } from '@/lib/format';
 
 export function TradingDashboard() {
   const socketRef = useRef<SocketType | null>(null);
@@ -406,7 +407,7 @@ export function TradingDashboard() {
             id: `signal_${Date.now()}`,
             level: signal.type === 'alert' ? 'warning' : 'info',
             category: 'trade',
-            message: `${signal.type.toUpperCase()} Signal: ${signal.symbol} @ $${signal.price.toFixed(4)}`,
+            message: `${signal.type.toUpperCase()} Signal: ${signal.symbol} @ ${formatPrice(signal.price)}`,
             details: JSON.stringify(signal),
             createdAt: new Date().toISOString(),
           });
@@ -579,7 +580,7 @@ export function TradingDashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="container px-3 sm:px-4 py-4 sm:py-6">
+      <main className="container px-3 sm:px-4 py-4 sm:py-6 pb-24 sm:pb-20">
         {/* Stats Overview */}
         <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 mb-4 sm:mb-6">
           <Card className="border-l-4 border-l-blue-500/50 hover:shadow-md transition-shadow">
@@ -588,7 +589,7 @@ export function TradingDashboard() {
               <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-lg sm:text-2xl font-bold">${totalValue.toFixed(2)}</div>
+              <div className="text-lg sm:text-2xl font-bold">{formatUsd(totalValue)}</div>
               <p className="text-xs text-muted-foreground">
                 {positions.length} position{positions.length !== 1 ? 's' : ''}
               </p>
@@ -605,7 +606,7 @@ export function TradingDashboard() {
             </CardHeader>
             <CardContent>
               <div className={`text-lg sm:text-2xl font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {totalPnL >= 0 ? '+' : ''}${Math.abs(totalPnL).toFixed(2)}
+                {totalPnL >= 0 ? '+' : '-'}{formatUsd(Math.abs(totalPnL), { showCents: true, compactThreshold: 1000000 })}
               </div>
               <p className="text-xs text-muted-foreground">
                 Unrealized
@@ -618,7 +619,7 @@ export function TradingDashboard() {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-lg sm:text-2xl font-bold">{winRate.toFixed(1)}%</div>
+              <div className="text-lg sm:text-2xl font-bold">{formatPercent(winRate, { decimals: 1 })}</div>
               <Progress value={winRate} className="mt-2 h-2" />
             </CardContent>
           </Card>
@@ -642,28 +643,27 @@ export function TradingDashboard() {
             <TabsList className="grid w-full grid-cols-6 min-w-[600px] sm:min-w-0 sm:w-auto sm:inline-flex">
               <TabsTrigger value="dashboard" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
                 <LineChart className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Dashboard</span>
+                <span className="text-xs sm:text-sm">Dashboard</span>
               </TabsTrigger>
               <TabsTrigger value="wallet" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
                 <Wallet className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Wallet</span>
+                <span className="text-xs sm:text-sm">Wallet</span>
               </TabsTrigger>
               <TabsTrigger value="config" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
                 <Settings className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Config</span>
+                <span className="text-xs sm:text-sm">Config</span>
               </TabsTrigger>
               <TabsTrigger value="trading-activity" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
                 <BarChart3 className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Trading Activity</span>
-                <span className="sm:hidden">Activity</span>
+                <span className="text-xs sm:text-sm">Activity</span>
               </TabsTrigger>
               <TabsTrigger value="sniper" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
                 <Crosshair className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Sniper</span>
+                <span className="text-xs sm:text-sm">Sniper</span>
               </TabsTrigger>
               <TabsTrigger value="help" className="min-h-[44px] px-2 sm:px-4 flex items-center gap-1 sm:gap-2">
                 <HelpCircle className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Help</span>
+                <span className="text-xs sm:text-sm">Help</span>
               </TabsTrigger>
             </TabsList>
           </ScrollArea>
@@ -709,21 +709,17 @@ export function TradingDashboard() {
                                     : 'bg-red-500/10 text-red-500 border-red-500/20'
                                 }
                               >
-                                {price.priceChange24h >= 0 ? '+' : ''}
-                                {price.priceChange24h.toFixed(2)}%
+                                {formatPercent(price.priceChange24h, { showSign: true })}
                               </Badge>
                             )}
                           </div>
                           <div className="text-right">
                             <div className="font-mono font-medium">
-                              ${price.price < 0.01 ? price.price.toExponential(2) : price.price.toLocaleString(undefined, {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: price.price < 1 ? 6 : 2,
-                              })}
+                              {formatPrice(price.price)}
                             </div>
                             {price.volume24h > 0 && (
                               <div className="text-xs text-muted-foreground">
-                                Vol: ${(price.volume24h / 1000000).toFixed(1)}M
+                                Vol: ${formatCompact(price.volume24h)}
                               </div>
                             )}
                           </div>
@@ -768,10 +764,10 @@ export function TradingDashboard() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{position.tokenSymbol || 'Unknown'}</span>
-                            <Badge variant="outline">{position.amount.toFixed(4)}</Badge>
+                            <Badge variant="outline">{formatAmount(position.amount, { decimals: 4 })}</Badge>
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            Entry: ${position.entryPrice.toFixed(4)}
+                            Entry: {formatPrice(position.entryPrice)}
                           </div>
                         </div>
                         <div className="text-right">
@@ -780,11 +776,10 @@ export function TradingDashboard() {
                               (position.profitLossPercent || 0) >= 0 ? 'text-green-500' : 'text-red-500'
                             }`}
                           >
-                            {(position.profitLossPercent || 0) >= 0 ? '+' : ''}
-                            {(position.profitLossPercent || 0).toFixed(2)}%
+                            {formatPercent(position.profitLossPercent || 0, { showSign: true })}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            ${(position.currentValue || position.valueIn).toFixed(2)}
+                            {formatUsd(position.currentValue || position.valueIn)}
                           </div>
                         </div>
                       </div>
@@ -1885,10 +1880,10 @@ export function TradingDashboard() {
                           <TableCell className="font-medium">
                             {position.tokenSymbol || 'Unknown'}
                           </TableCell>
-                          <TableCell>{position.amount.toFixed(4)}</TableCell>
-                          <TableCell>${position.entryPrice.toFixed(6)}</TableCell>
+                          <TableCell>{formatAmount(position.amount, { decimals: 4 })}</TableCell>
+                          <TableCell>{formatPrice(position.entryPrice, { maxDecimals: 8 })}</TableCell>
                           <TableCell>
-                            ${(position.currentValue || position.valueIn).toFixed(2)}
+                            {formatUsd(position.currentValue || position.valueIn)}
                           </TableCell>
                           <TableCell>
                             <span
@@ -1898,18 +1893,17 @@ export function TradingDashboard() {
                                   : 'text-red-500'
                               }
                             >
-                              {(position.profitLossPercent || 0) >= 0 ? '+' : ''}
-                              {(position.profitLossPercent || 0).toFixed(2)}%
+                              {formatPercent(position.profitLossPercent || 0, { showSign: true })}
                             </span>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
                             {position.stopLossPrice
-                              ? `$${position.stopLossPrice.toFixed(6)}`
+                              ? formatPrice(position.stopLossPrice, { maxDecimals: 8 })
                               : '-'}
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
                             {position.takeProfitPrice
-                              ? `$${position.takeProfitPrice.toFixed(6)}`
+                              ? formatPrice(position.takeProfitPrice, { maxDecimals: 8 })
                               : '-'}
                           </TableCell>
                           <TableCell>
@@ -2005,9 +1999,9 @@ export function TradingDashboard() {
                             <TableCell className="font-medium">
                               {trade.tokenSymbol || 'Unknown'}
                             </TableCell>
-                            <TableCell>{trade.amountIn.toFixed(4)}</TableCell>
-                            <TableCell>{trade.amountOut.toFixed(4)}</TableCell>
-                            <TableCell>${trade.price.toFixed(6)}</TableCell>
+                            <TableCell>{formatAmount(trade.amountIn, { decimals: 4 })}</TableCell>
+                            <TableCell>{formatAmount(trade.amountOut, { decimals: 4 })}</TableCell>
+                            <TableCell>{formatPrice(trade.price, { maxDecimals: 8 })}</TableCell>
                             <TableCell className="hidden sm:table-cell">
                               <Badge
                                 variant="outline"
@@ -2031,8 +2025,7 @@ export function TradingDashboard() {
                                     trade.profitLoss >= 0 ? 'text-green-500' : 'text-red-500'
                                   }
                                 >
-                                  {trade.profitLoss >= 0 ? '+' : ''}
-                                  {trade.profitLoss.toFixed(4)}
+                                  {trade.profitLoss >= 0 ? '+' : ''}{formatAmount(trade.profitLoss, { decimals: 4 })}
                                 </span>
                               ) : (
                                 '-'

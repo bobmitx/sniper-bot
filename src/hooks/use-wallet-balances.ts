@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAccount, useBalance } from 'wagmi';
 import { formatUnits } from 'viem';
+import { formatBalance as formatBalanceUtil } from '@/lib/format';
 
 // Chain configurations for balance fetching
 export const SUPPORTED_CHAINS = [
@@ -191,12 +192,9 @@ export function getBalanceForChainId(balances: ChainBalance[], chainId: number):
   return balances.find(b => b.chainId === chainId);
 }
 
-// Format balance for display
+// Format balance for display - uses centralized utility
 export function formatBalance(balance: string, decimals: number = 6): string {
-  const num = parseFloat(balance);
-  if (isNaN(num) || num === 0) return '0';
-  if (num < 0.000001) return '<0.000001';
-  return num.toFixed(decimals);
+  return formatBalanceUtil(balance, decimals);
 }
 
 // Check if wallet has enough balance for a trade
